@@ -1,17 +1,14 @@
 import requests
 from config.settings import BASE_URL, HEADERS, TIMEOUT
-from core.logger import log
 
+def fetch_page(page):
+    url = BASE_URL.format(page)
 
-def fetch_page():
     try:
-        log("Sending HTTP request...")
-        response = requests.get(BASE_URL, headers=HEADERS, timeout=TIMEOUT)
+        print(f"Fetching page {page}...")
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         response.raise_for_status()
-
-        log(f"Success! Status code: {response.status_code}")
         return response.text
-
-    except requests.exceptions.RequestException as e:
-        log(f"Request failed: {e}")
+    except requests.RequestException as e:
+        print(f"Error on page {page}: {e}")
         return None
