@@ -1,33 +1,34 @@
 import os
-from extractor.fetcher import DataFetcher
-
-
-def save_raw_html(content: str, filename: str):
-    os.makedirs("data/raw", exist_ok=True)
-
-    file_path = os.path.join("data/raw", filename)
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    print(f"[INFO] HTML saved to {file_path}")
-
+import json
+from extractor.fetcher import fetch_page
+from extractor.parser import parse_quotes
 
 def main():
-    # Ganti dengan target real nanti (sementara test dulu)
-    url = "https://example.com"
+    print("=== Clinic Data Engine Started ===")
 
-    fetcher = DataFetcher(url)
-    html = fetcher.fetch()
+    html = fetch_page()
 
     if html:
-        print("[INFO] Preview HTML (first 300 chars):")
-        print(html[:300])
+        # pastikan folder ada
+        os.makedirs("data/raw", exist_ok=True)
+        os.makedirs("data/processed", exist_ok=True)
 
-        save_raw_html(html, "page_1.html")
-    else:
-        print("[FAILED] Could not fetch HTML")
+        # save raw
+        with open("data/raw/raw_page_1.html", "w", encoding="utf-8") as f:
+            f.write(html)
 
+        parsed_data = parse_quotes(html)
+
+        print(f"Parsed {len(parsed_data)} items")
+
+        for item in parsed_data[:2]:
+            print(item)
+
+        # save processed
+        with open("data/processed/parsed_page_1.json", "w", encoding="utf-8") as f:
+            json.dump(parsed_data, f, indent=4)
+
+    print("=== Process Finished ===")
 
 if __name__ == "__main__":
     main()
