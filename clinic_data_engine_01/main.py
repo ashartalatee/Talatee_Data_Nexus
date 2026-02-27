@@ -1,5 +1,6 @@
 from extractor.fetcher import fetch_page
 from extractor.parser import parse_quotes
+from transformer.cleaner import remove_duplicates
 from config.settings import START_PAGE, END_PAGE
 from datetime import datetime
 import os
@@ -23,6 +24,9 @@ def main():
 
     all_data = []
 
+    # ======================
+    # FETCH & PARSE LOOP
+    # ======================
     for page in range(START_PAGE, END_PAGE + 1):
         html = fetch_page(page)
 
@@ -30,7 +34,7 @@ def main():
             print(f"Skipping page {page} (fetch failed)")
             continue
 
-        # Save raw HTML per page
+        # Save raw HTML
         raw_file_path = f"{raw_path}/raw_page_{page}.html"
         with open(raw_file_path, "w", encoding="utf-8") as f:
             f.write(html)
@@ -40,28 +44,53 @@ def main():
 
         all_data.extend(parsed_data)
 
-    total_items = len(all_data)
-    print(f"\nTotal collected: {total_items} items")
+    total_raw_items = len(all_data)
+    print(f"\nTotal collected (raw): {total_raw_items} items")
 
-    # Save combined processed data
-    processed_file_path = f"{processed_path}/all_quotes.json"
-    with open(processed_file_path, "w", encoding="utf-8") as f:
-        json.dump(all_data, f, indent=4)
+    # ======================
+    # DATA CLEANING
+    # ======================
+    print("\nRunning Deduplication...")
 
-    # Save metadata
+    clean_data = remove_duplicates(
+        all_data,
+        key_fields=["quote", "author"]
+    )
+
+    total_clean_items = len(clean_data)
+
+    print(f"Before dedup: {total_raw_items}")
+    print(f"After dedup : {total_clean_items}")
+
+    # ======================
+    # SAVE CLEANED DATA
+    # ======================
+    cleaned_file_path = f"{processed_path}/cleaned_quotes.json"
+
+    with open(cleaned_file_path, "w", encoding="utf-8") as f:
+        json.dump(clean_data, f, indent=4)
+
+    # ======================
+    # SAVE METADATA
+    # ======================
     metadata = {
         "run_id": run_id,
         "start_page": START_PAGE,
         "end_page": END_PAGE,
-        "total_items": total_items
+        "total_raw_items": total_raw_items,
+        "total_clean_items": total_clean_items,
+        "raw_folder": raw_path,
+        "processed_folder": processed_path,
+        "status": "success"
     }
 
     metadata_path = f"{processed_path}/metadata.json"
+
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4)
 
-    print("Run ID:", run_id)
-    print("=== Process Finished ===")
+    print("\nRun ID:", run_id)
+    print("=== Process Finished Successfully ===")
 
 
 if __name__ == "__main__":
