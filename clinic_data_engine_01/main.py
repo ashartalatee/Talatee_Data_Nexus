@@ -1,6 +1,7 @@
 from extractor.fetcher import fetch_page
 from extractor.parser import parse_quotes
 from transformer.cleaner import remove_duplicates
+from transformer.normalizer import normalize_quotes_data
 from config.settings import START_PAGE, END_PAGE
 from datetime import datetime
 import os
@@ -63,12 +64,23 @@ def main():
     print(f"After dedup : {total_clean_items}")
 
     # ======================
+    # NORMALIZATION
+    # ======================
+    print("\nRunning Normalization...")
+
+    normalized_data = normalize_quotes_data(clean_data)
+
+    total_normalized_items = len(normalized_data)
+
+    print(f"Total normalized items: {total_normalized_items}")
+
+    # ======================
     # SAVE CLEANED DATA
     # ======================
     cleaned_file_path = f"{processed_path}/cleaned_quotes.json"
 
     with open(cleaned_file_path, "w", encoding="utf-8") as f:
-        json.dump(clean_data, f, indent=4)
+        json.dump(normalized_data, f, indent=4)
 
     # ======================
     # SAVE METADATA
@@ -79,6 +91,8 @@ def main():
         "end_page": END_PAGE,
         "total_raw_items": total_raw_items,
         "total_clean_items": total_clean_items,
+        "total_normalized_items": total_normalized_items,
+        "normalization_applied": True,
         "raw_folder": raw_path,
         "processed_folder": processed_path,
         "status": "success"
