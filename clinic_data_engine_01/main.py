@@ -2,6 +2,7 @@ from extractor.fetcher import fetch_page
 from extractor.parser import parse_quotes
 from transformer.cleaner import remove_duplicates
 from transformer.normalizer import normalize_quotes_data
+from transformer.validator import validate_quotes_data
 from config.settings import START_PAGE, END_PAGE
 from datetime import datetime
 import os
@@ -35,7 +36,6 @@ def main():
             print(f"Skipping page {page} (fetch failed)")
             continue
 
-        # Save raw HTML
         raw_file_path = f"{raw_path}/raw_page_{page}.html"
         with open(raw_file_path, "w", encoding="utf-8") as f:
             f.write(html)
@@ -49,7 +49,7 @@ def main():
     print(f"\nTotal collected (raw): {total_raw_items} items")
 
     # ======================
-    # DATA CLEANING
+    # DEDUPLICATION
     # ======================
     print("\nRunning Deduplication...")
 
@@ -69,18 +69,38 @@ def main():
     print("\nRunning Normalization...")
 
     normalized_data = normalize_quotes_data(clean_data)
-
     total_normalized_items = len(normalized_data)
 
     print(f"Total normalized items: {total_normalized_items}")
 
     # ======================
-    # SAVE CLEANED DATA
+    # VALIDATION
+    # ======================
+    print("\nRunning Validation...")
+
+    validated_data, validation_errors = validate_quotes_data(normalized_data)
+
+    total_valid_items = len(validated_data)
+    total_invalid_items = len(validation_errors)
+
+    print(f"Valid items  : {total_valid_items}")
+    print(f"Invalid items: {total_invalid_items}")
+
+    # ======================
+    # SAVE CLEAN DATA
     # ======================
     cleaned_file_path = f"{processed_path}/cleaned_quotes.json"
 
     with open(cleaned_file_path, "w", encoding="utf-8") as f:
-        json.dump(normalized_data, f, indent=4)
+        json.dump(validated_data, f, indent=4)
+
+    # ======================
+    # SAVE ERROR LOG (IF ANY)
+    # ======================
+    if total_invalid_items > 0:
+        error_log_path = f"{processed_path}/validation_errors.json"
+        with open(error_log_path, "w", encoding="utf-8") as f:
+            json.dump(validation_errors, f, indent=4)
 
     # ======================
     # SAVE METADATA
@@ -92,7 +112,10 @@ def main():
         "total_raw_items": total_raw_items,
         "total_clean_items": total_clean_items,
         "total_normalized_items": total_normalized_items,
+        "total_valid_items": total_valid_items,
+        "total_invalid_items": total_invalid_items,
         "normalization_applied": True,
+        "validation_applied": True,
         "raw_folder": raw_path,
         "processed_folder": processed_path,
         "status": "success"
