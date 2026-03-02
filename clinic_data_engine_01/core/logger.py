@@ -1,15 +1,32 @@
+import logging
 import os
 from datetime import datetime
 
-LOG_FILE = "logs/app.log"
 
-def log(message):
+def setup_logger(run_id=None):
     os.makedirs("logs", exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    full_message = f"[{timestamp}] {message}"
+    if run_id is None:
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    print(full_message)
+    log_file = f"logs/run_{run_id}.log"
 
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(full_message + "\n")
+    logger = logging.getLogger("clinic_engine")
+    logger.setLevel(logging.INFO)
+
+    # Prevent duplicate handlers if re-run
+    if not logger.handlers:
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(message)s"
+        )
+
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+
+        logger.addHandler(file_handler)
+        logger.addHandler(stream_handler)
+
+    return logger

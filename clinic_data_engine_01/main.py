@@ -4,6 +4,8 @@ from transformer.cleaner import remove_duplicates
 from transformer.normalizer import normalize_quotes_data
 from transformer.validator import validate_quotes_data
 from config.settings import START_PAGE, END_PAGE
+from core.logger import setup_logger
+
 from datetime import datetime
 import os
 import json
@@ -14,9 +16,10 @@ def get_run_id():
 
 
 def main():
-    print("=== Clinic Data Engine Started ===")
-
     run_id = get_run_id()
+    logger = setup_logger(run_id)
+
+    logger.info("=== Clinic Data Engine Started ===")
 
     raw_path = f"data/raw/{run_id}"
     processed_path = f"data/processed/{run_id}"
@@ -30,10 +33,12 @@ def main():
     # FETCH & PARSE LOOP
     # ======================
     for page in range(START_PAGE, END_PAGE + 1):
+        logger.info(f"Fetching page {page}")
+
         html = fetch_page(page)
 
         if not html:
-            print(f"Skipping page {page} (fetch failed)")
+            logger.warning(f"Skipping page {page} (fetch failed)")
             continue
 
         raw_file_path = f"{raw_path}/raw_page_{page}.html"
@@ -41,17 +46,17 @@ def main():
             f.write(html)
 
         parsed_data = parse_quotes(html)
-        print(f"Page {page}: {len(parsed_data)} items")
+        logger.info(f"Page {page}: {len(parsed_data)} items")
 
         all_data.extend(parsed_data)
 
     total_raw_items = len(all_data)
-    print(f"\nTotal collected (raw): {total_raw_items} items")
+    logger.info(f"Total collected (raw): {total_raw_items} items")
 
     # ======================
     # DEDUPLICATION
     # ======================
-    print("\nRunning Deduplication...")
+    logger.info("Running Deduplication...")
 
     clean_data = remove_duplicates(
         all_data,
@@ -60,31 +65,34 @@ def main():
 
     total_clean_items = len(clean_data)
 
-    print(f"Before dedup: {total_raw_items}")
-    print(f"After dedup : {total_clean_items}")
+    logger.info(f"Before dedup: {total_raw_items}")
+    logger.info(f"After dedup : {total_clean_items}")
 
     # ======================
     # NORMALIZATION
     # ======================
-    print("\nRunning Normalization...")
+    logger.info("Running Normalization...")
 
     normalized_data = normalize_quotes_data(clean_data)
     total_normalized_items = len(normalized_data)
 
-    print(f"Total normalized items: {total_normalized_items}")
+    logger.info(f"Total normalized items: {total_normalized_items}")
 
     # ======================
     # VALIDATION
     # ======================
-    print("\nRunning Validation...")
+    logger.info("Running Validation...")
 
     validated_data, validation_errors = validate_quotes_data(normalized_data)
 
     total_valid_items = len(validated_data)
     total_invalid_items = len(validation_errors)
 
-    print(f"Valid items  : {total_valid_items}")
-    print(f"Invalid items: {total_invalid_items}")
+    logger.info(f"Valid items  : {total_valid_items}")
+    logger.info(f"Invalid items: {total_invalid_items}")
+
+    if total_invalid_items > 0:
+        logger.warning(f"{total_invalid_items} invalid items detected")
 
     # ======================
     # SAVE CLEAN DATA
@@ -94,6 +102,8 @@ def main():
     with open(cleaned_file_path, "w", encoding="utf-8") as f:
         json.dump(validated_data, f, indent=4)
 
+    logger.info("Cleaned data saved successfully")
+
     # ======================
     # SAVE ERROR LOG (IF ANY)
     # ======================
@@ -101,6 +111,8 @@ def main():
         error_log_path = f"{processed_path}/validation_errors.json"
         with open(error_log_path, "w", encoding="utf-8") as f:
             json.dump(validation_errors, f, indent=4)
+
+        logger.info("Validation errors saved")
 
     # ======================
     # SAVE METADATA
@@ -126,8 +138,8 @@ def main():
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4)
 
-    print("\nRun ID:", run_id)
-    print("=== Process Finished Successfully ===")
+    logger.info(f"Run ID: {run_id}")
+    logger.info("=== Process Finished Successfully ===")
 
 
 if __name__ == "__main__":
