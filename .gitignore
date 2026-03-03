@@ -1,0 +1,11 @@
+# Virtual Environment
+venv/
+data-automation-engine/venv/
+
+# Environment
+.env
+data-automation-engine/.env
+
+# Python
+__pycache__/
+*.pyc
