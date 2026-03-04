@@ -1,17 +1,45 @@
-# Datasets
-datasets/
+# =========================
+# DATA OUTPUT
+# =========================
+data_automation_engine/datasets/
+data_automation_engine/logs/
+data_automation_engine/pdf/
+data_automation_engine/reports/
+
+# File exports
 *.csv
 *.xlsx
+*.json
+*.pdf
 
-# Logs
-logs/
-*.log
-
-# Generated files
-pdf/
-reports/
-
-# Python
+# =========================
+# PYTHON
+# =========================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# =========================
+# ENVIRONMENT
+# =========================
 .env
+.env.*
+
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# LOG FILES
+# =========================
+*.log
+*.engine.log
