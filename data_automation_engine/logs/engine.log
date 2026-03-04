@@ -1,0 +1,10 @@
+2026-03-05 03:58:44,549 | INFO | scrapers.base.request_handler | Requesting URL: http://quotes.toscrape.com/page/1/
+2026-03-05 03:58:47,391 | INFO | scrapers.base.request_handler | Requesting URL: http://quotes.toscrape.com/page/2/
+2026-03-05 03:58:51,350 | INFO | scrapers.base.request_handler | Requesting URL: http://quotes.toscrape.com/page/3/
+2026-03-05 04:06:29,490 | INFO | QuotesScraper | Scraping page 1
+2026-03-05 04:06:29,490 | INFO | scrapers.base.request_handler | Requesting URL: http://quotes.toscrape.com/page/1/
+2026-03-05 04:06:32,246 | INFO | QuotesScraper | Scraping page 2
+2026-03-05 04:06:32,260 | INFO | scrapers.base.request_handler | Requesting URL: http://quotes.toscrape.com/page/2/
+2026-03-05 04:06:35,248 | INFO | QuotesScraper | Scraping page 3
+2026-03-05 04:06:35,258 | INFO | scrapers.base.request_handler | Requesting URL: http://quotes.toscrape.com/page/3/
+2026-03-05 04:06:37,905 | INFO | QuotesScraper | Data saved to D:\Talatee_Engine\TALATEE_ENGINE\Talatee Agency\EXTRACTION FILE\DATA EXTRACTION ENGINE\FREELANCE\1-INTELIGENCE\Talatee Data Nexus\Talatee_Data_Nexus\data_automation_engine\datasets\quotes.csv
