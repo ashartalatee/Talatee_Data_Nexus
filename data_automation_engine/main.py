@@ -1,5 +1,6 @@
-def main():
-    print("Data Automation Engine Initialzed")
+from scrapers.quotes.quotes_scraper import QuotesScraper
+
 
 if __name__ == "__main__":
-    main()
+    scraper = QuotesScraper()
+    scraper.run(pages=10)

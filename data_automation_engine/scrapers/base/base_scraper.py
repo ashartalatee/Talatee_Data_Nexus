@@ -1,16 +1,15 @@
-from abc import ABC, abstractmethod
-class BaseScraper(ABC):
-    def __init__(self, base_url: str):
-        self.base_url = base_url
+from .request_handler import RequestHandler
 
-    @abstractmethod
-    def fetch(self):
-        pass
 
-    @abstractmethod
-    def parse(self, html):
-        pass
+class BaseScraper:
+    def __init__(self):
+        self.request_handler = RequestHandler()
 
-    @abstractmethod
-    def run(self):
-        pass
+    def fetch(self, url):
+        return self.request_handler.get(url)
+
+    def parse(self, response):
+        raise NotImplementedError
+
+    def save(self, data):
+        raise NotImplementedError
