@@ -1,11 +1,17 @@
-# Virtual Environment
-venv/
-data-automation-engine/venv/
+# Datasets
+datasets/
+*.csv
+*.xlsx
 
-# Environment
-.env
-data-automation-engine/.env
+# Logs
+logs/
+*.log
+
+# Generated files
+pdf/
+reports/
 
 # Python
 __pycache__/
 *.pyc
+.env
