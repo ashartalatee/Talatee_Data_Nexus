@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 from scrapers.base.base_scraper import BaseScraper
+from scrapers.base.pagination import Pagination
 
 
 class QuotesScraper(BaseScraper):
@@ -16,6 +17,7 @@ class QuotesScraper(BaseScraper):
         for quote_block in soup.find_all("div", class_="quote"):
             text = quote_block.find("span", class_="text").get_text(strip=True)
             author = quote_block.find("small", class_="author").get_text(strip=True)
+
             tags = [
                 tag.get_text(strip=True)
                 for tag in quote_block.find_all("a", class_="tag")
@@ -29,32 +31,38 @@ class QuotesScraper(BaseScraper):
 
         return quotes
 
+
     def run(self, pages=10):
+
         all_quotes = []
 
-        for page in range(1, pages + 1):
-            self.logger.info(f"Scraping page {page}")
+        paginator = Pagination(self.BASE_URL)
+        urls = paginator.build_urls(pages)
 
-            url = self.BASE_URL.format(page)
+        for i, url in enumerate(urls, start=1):
+
+            self.logger.info(f"Scraping page {i}")
 
             try:
                 response = self.fetch(url)
+
                 quotes = self.parse(response)
 
                 if not quotes:
-                    self.logger.warning(f"No quotes found on page {page}. Stopping.")
+                    self.logger.warning(f"No quotes found on page {i}. Stopping.")
                     break
 
                 all_quotes.extend(quotes)
 
             except Exception as e:
-                self.logger.error(f"Failed on page {page}: {e}")
+                self.logger.error(f"Failed on page {i}: {e}")
                 continue
 
         self.save(all_quotes)
 
+
     def save(self, data):
-        # Ambil root project (2 level naik dari file ini)
+
         project_root = Path(__file__).resolve().parents[2]
 
         dataset_path = project_root / "datasets"
