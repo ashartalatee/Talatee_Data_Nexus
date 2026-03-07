@@ -1,9 +1,11 @@
 from bs4 import BeautifulSoup
-import pandas as pd
 from pathlib import Path
 
 from scrapers.base.base_scraper import BaseScraper
 from scrapers.base.pagination import Pagination
+
+from cleaning.data_cleaner import DataCleaner
+from cleaning.data_validator import DataValidator
 
 
 class QuotesScraper(BaseScraper):
@@ -11,10 +13,12 @@ class QuotesScraper(BaseScraper):
     BASE_URL = "http://quotes.toscrape.com/page/{}/"
 
     def parse(self, response):
+
         soup = BeautifulSoup(response.text, "html.parser")
         quotes = []
 
         for quote_block in soup.find_all("div", class_="quote"):
+
             text = quote_block.find("span", class_="text").get_text(strip=True)
             author = quote_block.find("small", class_="author").get_text(strip=True)
 
@@ -58,19 +62,31 @@ class QuotesScraper(BaseScraper):
                 self.logger.error(f"Failed on page {i}: {e}")
                 continue
 
-        self.save(all_quotes)
+        # =========================
+        # VALIDATION
+        # =========================
+        validated_data = DataValidator.validate(all_quotes)
+
+        # =========================
+        # CLEANING
+        # =========================
+        clean_df = DataCleaner.clean_quotes(validated_data)
+
+        # =========================
+        # SAVE
+        # =========================
+        self.save(clean_df)
 
 
-    def save(self, data):
+    def save(self, df):
 
         project_root = Path(__file__).resolve().parents[2]
 
         dataset_path = project_root / "datasets"
         dataset_path.mkdir(parents=True, exist_ok=True)
 
-        file_path = dataset_path / "quotes.csv"
+        file_path = dataset_path / "quotes_cleaned.csv"
 
-        df = pd.DataFrame(data)
         df.to_csv(file_path, index=False)
 
-        self.logger.info(f"Data saved to {file_path}")
+        self.logger.info(f"Clean dataset saved to {file_path}")
