@@ -1,5 +1,7 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
+from datetime import datetime
+import json
 
 from scrapers.base.base_scraper import BaseScraper
 from scrapers.base.pagination import Pagination
@@ -43,6 +45,8 @@ class QuotesScraper(BaseScraper):
         paginator = Pagination(self.BASE_URL)
         urls = paginator.build_urls(pages)
 
+        self.logger.info(f"Starting scraper for {pages} pages")
+
         for i, url in enumerate(urls, start=1):
 
             self.logger.info(f"Scraping page {i}")
@@ -61,6 +65,8 @@ class QuotesScraper(BaseScraper):
             except Exception as e:
                 self.logger.error(f"Failed on page {i}: {e}")
                 continue
+
+        self.logger.info(f"Total quotes collected: {len(all_quotes)}")
 
         # =========================
         # VALIDATION
@@ -85,8 +91,17 @@ class QuotesScraper(BaseScraper):
         dataset_path = project_root / "datasets"
         dataset_path.mkdir(parents=True, exist_ok=True)
 
-        file_path = dataset_path / "quotes_cleaned.csv"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        df.to_csv(file_path, index=False)
+        csv_file = dataset_path / f"quotes_{timestamp}.csv"
+        json_file = dataset_path / f"quotes_{timestamp}.json"
 
-        self.logger.info(f"Clean dataset saved to {file_path}")
+        # Save CSV
+        df.to_csv(csv_file, index=False)
+
+        # Save JSON
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(df.to_dict(orient="records"), f, indent=2, ensure_ascii=False)
+
+        self.logger.info(f"CSV saved → {csv_file}")
+        self.logger.info(f"JSON saved → {json_file}")
