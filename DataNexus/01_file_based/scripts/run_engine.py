@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import os
 from datetime import datetime
+import pandas as pd
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
@@ -12,7 +13,6 @@ from config.settings import INPUT_CSV, INPUT_EXCEL, INPUT_PDF
 def scan_folder(folder_path):
 
     files_data = []
-
     folder = Path(folder_path)
 
     if not folder.exists():
@@ -68,11 +68,41 @@ def classify_files(files):
             other_files.append(file)
 
     return {
-        "csv": csv_files,
-        "excel": excel_files,
-        "pdf": pdf_files,
-        "other": other_files
+        "csv": sorted(csv_files, key=lambda x: x["file_name"]),
+        "excel": sorted(excel_files, key=lambda x: x["file_name"]),
+        "pdf": sorted(pdf_files, key=lambda x: x["file_name"]),
+        "other": sorted(other_files, key=lambda x: x["file_name"])
     }
+
+
+def load_csv_files(csv_files):
+
+    dataframes = []
+
+    for file in csv_files:
+
+        path = file["file_path"]
+
+        try:
+
+            df = pd.read_csv(path)
+
+            df["source_file"] = file["file_name"]
+
+            dataframes.append(df)
+
+            print(f"Loaded CSV: {file['file_name']}")
+
+        except Exception as e:
+
+            print(f"Failed loading {file['file_name']} : {e}")
+
+    if not dataframes:
+        return None
+
+    combined_df = pd.concat(dataframes, ignore_index=True)
+
+    return combined_df
 
 
 def main():
@@ -102,7 +132,6 @@ def main():
 
     print("\nTotal Files Found:", len(all_files))
 
-    # CLASSIFY FILES
     classified = classify_files(all_files)
 
     print("\nCSV FILES:")
@@ -127,6 +156,24 @@ def main():
     print("Excel :", len(classified["excel"]))
     print("PDF   :", len(classified["pdf"]))
     print("Other :", len(classified["other"]))
+
+    # LOAD CSV DATA
+    if classified["csv"]:
+
+        print("\nLOADING CSV DATA...\n")
+
+        df = load_csv_files(classified["csv"])
+
+        if df is not None:
+
+            print("\nDATA PREVIEW\n")
+            print(df.head())
+
+            print("\nTOTAL ROWS:", len(df))
+
+        else:
+
+            print("No CSV data loaded.")
 
 
 if __name__ == "__main__":
