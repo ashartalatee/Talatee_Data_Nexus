@@ -1,29 +1,29 @@
-class FileClassifier:
+def classify_files(files):
 
-    def __init__(self, files_metadata):
-        self.files_metadata = files_metadata
+    csv_files = []
+    excel_files = []
+    pdf_files = []
+    other_files = []
 
-    def classify(self):
+    for file in files:
 
-        csv_files = []
-        excel_files = []
-        pdf_files = []
+        file_type = file["file_type"]
 
-        for file in self.files_metadata:
+        if file_type == ".csv":
+            csv_files.append(file)
 
-            file_type = file["file_type"].lower()
+        elif file_type in [".xlsx", ".xls"]:
+            excel_files.append(file)
 
-            if file_type == ".csv":
-                csv_files.append(file)
+        elif file_type == ".pdf":
+            pdf_files.append(file)
 
-            elif file_type in [".xlsx", ".xls"]:
-                excel_files.append(file)
+        else:
+            other_files.append(file)
 
-            elif file_type == ".pdf":
-                pdf_files.append(file)
-
-        return {
-            "csv": csv_files,
-            "excel": excel_files,
-            "pdf": pdf_files
-        }
+    return {
+        "csv": sorted(csv_files, key=lambda x: x["file_name"]),
+        "excel": sorted(excel_files, key=lambda x: x["file_name"]),
+        "pdf": sorted(pdf_files, key=lambda x: x["file_name"]),
+        "other": sorted(other_files, key=lambda x: x["file_name"])
+    }

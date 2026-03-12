@@ -3,44 +3,35 @@ import os
 from datetime import datetime
 
 
-class FileScanner:
+def scan_folder(folder_path):
 
-    def __init__(self, folders):
-        self.folders = folders
+    files_data = []
 
-    def scan(self):
+    folder = Path(folder_path)
 
-        files_metadata = []
+    if not folder.exists():
+        return files_data
 
-        for folder in self.folders:
+    for file in folder.glob("*"):
 
-            folder_path = Path(folder)
+        if not file.is_file():
+            continue
 
-            if not folder_path.exists():
-                continue
+        filename = file.name.lower()
 
-            for file in folder_path.glob("*"):
+        if filename.startswith("~") or filename.startswith(".~") or "lock" in filename:
+            continue
 
-                # skip jika bukan file
-                if not file.is_file():
-                    continue
+        metadata = {
+            "file_name": file.name,
+            "file_type": file.suffix.lower(),
+            "file_path": str(file.resolve()),
+            "file_size": os.path.getsize(file),
+            "created_time": datetime.fromtimestamp(
+                os.path.getctime(file)
+            ).strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
-                filename = file.name.lower()
+        files_data.append(metadata)
 
-                # filter file sementara / lock
-                if filename.startswith("~") or filename.startswith(".~") or "lock" in filename:
-                    continue
-
-                metadata = {
-                    "file_name": file.name,
-                    "file_type": file.suffix.lower(),
-                    "file_path": str(file.resolve()),
-                    "file_size": os.path.getsize(file),
-                    "created_time": datetime.fromtimestamp(
-                        os.path.getctime(file)
-                    ).strftime("%Y-%m-%d %H:%M:%S"),
-                }
-
-                files_metadata.append(metadata)
-
-        return files_metadata
+    return files_data
