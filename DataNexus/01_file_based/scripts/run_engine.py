@@ -11,6 +11,7 @@ from engine.file_scanner import scan_folder
 from engine.file_classifier import classify_files
 from engine.csv_loader import load_csv_files
 from engine.excel_loader import load_excel_files
+from engine.validator import validate_dataset
 
 
 def main():
@@ -70,6 +71,29 @@ def main():
         print(unified_df.head())
 
         print("\nTOTAL ROWS:", len(unified_df))
+
+        # =========================
+        # DATA VALIDATION
+        # =========================
+
+        print("\nRUNNING DATA VALIDATION...\n")
+
+        report = validate_dataset(unified_df)
+
+        print("DATA QUALITY REPORT")
+        print("-------------------")
+
+        print("Total Rows:", report["total_rows"])
+        print("Total Missing:", report["total_missing"])
+        print("Duplicate Rows:", report["duplicate_rows"])
+
+        print("\nMissing Values Per Column:")
+        for col, val in report["missing_values"].items():
+            print(f"{col}: {val}")
+
+        print("\nColumn Types:")
+        for col, dtype in report["column_types"].items():
+            print(f"{col}: {dtype}")
 
     else:
 
