@@ -13,7 +13,8 @@ from engine.csv_loader import load_csv_files
 from engine.excel_loader import load_excel_files
 from engine.data_validator import validate_dataset
 from engine.data_cleaner import clean_dataset
-
+from engine.data_storage import save_dataset
+from config.settings import OUTPUT_DATA
 
 def main():
 
@@ -125,10 +126,22 @@ def main():
         print("\nCLEANED DATA PREVIEW\n")
 
         print(cleaned_df.head())
+        
 
     else:
 
         print("\nNo dataset available.")
+
+        # =========================
+        # DATA STORAGE
+        # =========================
+
+        print("\nSAVING CLEAN DATASET...\n")
+
+        output_file = save_dataset(cleaned_df, OUTPUT_DATA)
+
+        print("Dataset saved to:")
+        print(output_file)
 
 
 if __name__ == "__main__":
