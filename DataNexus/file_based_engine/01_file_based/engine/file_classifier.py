@@ -1,29 +1,38 @@
 def classify_files(files):
 
-    csv_files = []
-    excel_files = []
-    pdf_files = []
-    other_files = []
+    classified = {
+        "csv": [],
+        "excel": [],
+        "pdf": [],
+        "other": []
+    }
 
     for file in files:
 
-        file_type = file["file_type"]
+        try:
 
-        if file_type == ".csv":
-            csv_files.append(file)
+            file_type = str(file.get("file_type", "")).lower()
 
-        elif file_type in [".xlsx", ".xls"]:
-            excel_files.append(file)
+            if file_type == ".csv":
+                classified["csv"].append(file)
 
-        elif file_type == ".pdf":
-            pdf_files.append(file)
+            elif file_type in [".xlsx", ".xls"]:
+                classified["excel"].append(file)
 
-        else:
-            other_files.append(file)
+            elif file_type == ".pdf":
+                classified["pdf"].append(file)
 
-    return {
-        "csv": sorted(csv_files, key=lambda x: x["file_name"]),
-        "excel": sorted(excel_files, key=lambda x: x["file_name"]),
-        "pdf": sorted(pdf_files, key=lambda x: x["file_name"]),
-        "other": sorted(other_files, key=lambda x: x["file_name"])
-    }
+            else:
+                classified["other"].append(file)
+
+        except Exception:
+            classified["other"].append(file)
+
+    # sort files for deterministic processing
+    for key in classified:
+        classified[key] = sorted(
+            classified[key],
+            key=lambda x: x.get("file_name", "")
+        )
+
+    return classified

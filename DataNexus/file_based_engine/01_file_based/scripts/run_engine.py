@@ -6,8 +6,17 @@ import time
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
 
-from config.settings import INPUT_CSV, INPUT_EXCEL, INPUT_PDF, OUTPUT_DATA
+from config.settings import (
+    INPUT_CSV,
+    INPUT_EXCEL,
+    INPUT_PDF,
+    OUTPUT_DATA,
+    PROCESSED_FILES,
+    PIPELINE_REPORT
+)
+
 from engine.logger import setup_logger
+from engine.scheduler import run_scheduler
 
 from engine.file_scanner import scan_folder
 from engine.file_classifier import classify_files
@@ -17,12 +26,28 @@ from engine.data_validator import validate_dataset
 from engine.data_cleaner import clean_dataset
 from engine.data_storage import save_dataset
 
+from engine.file_tracker import (
+    load_processed_files,
+    update_processed_files
+)
 
-def main():
+from engine.pipeline_reporter import save_pipeline_report
+
+
+def run_pipeline():
 
     logger = setup_logger()
 
     start_time = time.time()
+
+    # =========================
+    # PIPELINE METRICS
+    # =========================
+
+    files_processed = 0
+    rows_processed = 0
+    duplicates_removed = 0
+    status = "SUCCESS"
 
     print("\nFILE DATA AUTOMATION ENGINE\n")
     logger.info("ENGINE STARTED")
@@ -38,6 +63,12 @@ def main():
     try:
 
         # =========================
+        # LOAD FILE HISTORY
+        # =========================
+
+        processed_files = load_processed_files(PROCESSED_FILES)
+
+        # =========================
         # SCAN FILES
         # =========================
 
@@ -47,7 +78,6 @@ def main():
             logger.info(f"Scanning folder: {folder}")
 
             files = scan_folder(folder)
-
             all_files.extend(files)
 
         if not all_files:
@@ -56,14 +86,29 @@ def main():
             logger.warning("No files found")
             return
 
-        print("\nTotal Files Found:", len(all_files))
-        logger.info(f"Total files found: {len(all_files)}")
+        # =========================
+        # FILTER NEW FILES
+        # =========================
+
+        new_files = [
+            f for f in all_files
+            if f["file_name"] not in processed_files
+        ]
+
+        if not new_files:
+
+            print("\nNo new files to process.")
+            logger.info("No new files detected")
+            return
+
+        print("\nNEW FILES FOUND:", len(new_files))
+        logger.info(f"New files detected: {len(new_files)}")
 
         # =========================
         # CLASSIFY FILES
         # =========================
 
-        classified = classify_files(all_files)
+        classified = classify_files(new_files)
 
         print("\nCSV FILES:", len(classified["csv"]))
         print("EXCEL FILES:", len(classified["excel"]))
@@ -88,88 +133,87 @@ def main():
         if excel_df is not None:
             datasets.append(excel_df)
 
+        if not datasets:
+
+            print("\nNo dataset available.")
+            logger.warning("No dataset available")
+            return
+
         # =========================
         # MERGE DATASETS
         # =========================
 
-        if datasets:
+        unified_df = pd.concat(datasets, ignore_index=True)
 
-            unified_df = pd.concat(datasets, ignore_index=True)
+        print("\nUNIFIED DATA PREVIEW\n")
+        print(unified_df.head())
 
-            print("\nUNIFIED DATA PREVIEW\n")
-            print(unified_df.head())
+        print("\nTOTAL ROWS:", len(unified_df))
+        logger.info(f"Unified dataset rows: {len(unified_df)}")
 
-            print("\nTOTAL ROWS:", len(unified_df))
-            logger.info(f"Unified dataset rows: {len(unified_df)}")
+        # =========================
+        # DATA VALIDATION
+        # =========================
 
-            # =========================
-            # DATA VALIDATION
-            # =========================
+        print("\nRUNNING DATA VALIDATION...\n")
 
-            print("\nRUNNING DATA VALIDATION...\n")
+        report = validate_dataset(unified_df)
 
-            report = validate_dataset(unified_df)
+        print("DATA QUALITY REPORT")
+        print("-------------------")
+        print("Total Rows:", report["total_rows"])
+        print("Total Missing:", report["total_missing"])
+        print("Duplicate Rows:", report["duplicate_rows"])
 
-            print("DATA QUALITY REPORT")
-            print("-------------------")
-            print("Total Rows:", report["total_rows"])
-            print("Total Missing:", report["total_missing"])
-            print("Duplicate Rows:", report["duplicate_rows"])
+        # =========================
+        # DATA CLEANING
+        # =========================
 
-            logger.info(f"Total rows: {report['total_rows']}")
-            logger.info(f"Total missing: {report['total_missing']}")
-            logger.info(f"Duplicate rows: {report['duplicate_rows']}")
+        print("\nRUNNING DATA CLEANING...\n")
 
-            print("\nMissing Values Per Column:")
+        cleaned_df, cleaning_report = clean_dataset(unified_df)
 
-            for col, val in report["missing_values"].items():
-                print(f"{col}: {val}")
+        print("CLEANING REPORT")
+        print("-------------------")
+        print("Rows Before:", cleaning_report["rows_before"])
+        print("Rows After :", cleaning_report["rows_after"])
+        print("Duplicates Removed:", cleaning_report["duplicates_removed"])
 
-            print("\nColumn Types:")
+        print("\nCLEANED DATA PREVIEW\n")
+        print(cleaned_df.head())
 
-            for col, dtype in report["column_types"].items():
-                print(f"{col}: {dtype}")
+        # =========================
+        # DATA STORAGE
+        # =========================
 
-            # =========================
-            # DATA CLEANING
-            # =========================
+        print("\nSAVING CLEAN DATASET...\n")
 
-            print("\nRUNNING DATA CLEANING...\n")
+        output_file = save_dataset(cleaned_df, OUTPUT_DATA)
 
-            cleaned_df, cleaning_report = clean_dataset(unified_df)
+        print("Dataset saved to:")
+        print(output_file)
 
-            print("CLEANING REPORT")
-            print("-------------------")
-            print("Rows Before:", cleaning_report["rows_before"])
-            print("Rows After :", cleaning_report["rows_after"])
-            print("Duplicates Removed:", cleaning_report["duplicates_removed"])
+        logger.info(f"Dataset saved to {output_file}")
 
-            logger.info(f"Rows before cleaning: {cleaning_report['rows_before']}")
-            logger.info(f"Rows after cleaning: {cleaning_report['rows_after']}")
-            logger.info(f"Duplicates removed: {cleaning_report['duplicates_removed']}")
+        # =========================
+        # UPDATE METRICS
+        # =========================
 
-            print("\nCLEANED DATA PREVIEW\n")
-            print(cleaned_df.head())
+        files_processed = len(new_files)
+        rows_processed = len(cleaned_df)
+        duplicates_removed = cleaning_report["duplicates_removed"]
 
-            # =========================
-            # DATA STORAGE
-            # =========================
+        # =========================
+        # UPDATE FILE HISTORY
+        # =========================
 
-            print("\nSAVING CLEAN DATASET...\n")
+        update_processed_files(new_files, PROCESSED_FILES)
 
-            output_file = save_dataset(cleaned_df, OUTPUT_DATA)
-
-            print("Dataset saved to:")
-            print(output_file)
-
-            logger.info(f"Dataset saved to {output_file}")
-
-        else:
-
-            print("\nNo dataset available.")
-            logger.warning("No dataset available")
+        logger.info("Processed files metadata updated")
 
     except Exception as e:
+
+        status = "FAILED"
 
         logger.error(f"ENGINE ERROR: {str(e)}")
         print("Engine failed:", e)
@@ -180,8 +224,36 @@ def main():
         runtime = round(end_time - start_time, 2)
 
         print(f"\nENGINE FINISHED in {runtime} seconds")
-
         logger.info(f"Engine finished in {runtime} seconds")
+
+        # =========================
+        # SAVE PIPELINE REPORT
+        # =========================
+
+        report_data = {
+            "files_processed": files_processed,
+            "rows_processed": rows_processed,
+            "duplicates_removed": duplicates_removed,
+            "runtime_seconds": runtime,
+            "status": status
+        }
+
+        report_file = save_pipeline_report(
+            PIPELINE_REPORT,
+            report_data
+        )
+
+        print("\nPIPELINE REPORT SAVED:")
+        print(report_file)
+
+        logger.info(f"Pipeline report saved: {report_file}")
+
+
+def main():
+
+    INTERVAL_SECONDS = 300
+
+    run_scheduler(run_pipeline, INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

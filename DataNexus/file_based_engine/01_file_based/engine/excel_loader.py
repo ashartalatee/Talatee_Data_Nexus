@@ -1,30 +1,45 @@
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
+
+
+def load_single_excel(file):
+
+    try:
+
+        file_path = file["path"]
+        file_name = file["file_name"]
+
+        df = pd.read_excel(file_path)
+
+        print(f"Loaded Excel: {file_name}")
+
+        return df
+
+    except Exception as e:
+
+        print(f"Failed loading {file.get('file_name', 'unknown')}: {e}")
+
+        return None
 
 
 def load_excel_files(excel_files):
 
-    dataframes = []
-
-    for file in excel_files:
-
-        try:
-
-            sheets = pd.read_excel(file["file_path"], sheet_name=None)
-
-            for sheet_name, df in sheets.items():
-
-                df["source_file"] = file["file_name"]
-                df["source_sheet"] = sheet_name
-
-                dataframes.append(df)
-
-                print(f"Loaded Excel: {file['file_name']} | Sheet: {sheet_name}")
-
-        except Exception as e:
-
-            print(f"Failed loading {file['file_name']} : {e}")
-
-    if not dataframes:
+    if not excel_files:
         return None
 
-    return pd.concat(dataframes, ignore_index=True)
+    dataframes = []
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+
+        results = executor.map(load_single_excel, excel_files)
+
+        for df in results:
+
+            if df is not None:
+                dataframes.append(df)
+
+    if dataframes:
+
+        return pd.concat(dataframes, ignore_index=True)
+
+    return None

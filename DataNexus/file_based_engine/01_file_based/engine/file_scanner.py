@@ -19,10 +19,12 @@ def scan_folder(folder_path):
 
         filename = file.name.lower()
 
+        # skip temporary / lock files
         if filename.startswith("~") or filename.startswith(".~") or "lock" in filename:
             continue
 
         metadata = {
+            "path": file,  # <-- Path object (important for pipeline)
             "file_name": file.name,
             "file_type": file.suffix.lower(),
             "file_path": str(file.resolve()),
