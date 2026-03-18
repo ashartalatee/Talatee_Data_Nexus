@@ -1,5 +1,6 @@
 from engine.loader import load_sales, load_products
 from engine.validator import validate_sales
+from engine.cleaner import clean_sales
 import logging
 
 logging.basicConfig(
@@ -13,20 +14,16 @@ def run():
 
     logging.info("Starting Sales Automation Engine")
 
-    # Load data
     sales = load_sales()
     products = load_products()
 
-    # Validate sales data
     sales = validate_sales(sales)
+    sales = clean_sales(sales)
 
-    print("Validated Sales Data:")
+    print("Cleaned Sales Data:")
     print(sales)
 
-    print("\nProducts Data:")
-    print(products)
-
-    logging.info("Data validation completed successfully")
+    logging.info("Cleaning completed")
 
 
 if __name__ == "__main__":
