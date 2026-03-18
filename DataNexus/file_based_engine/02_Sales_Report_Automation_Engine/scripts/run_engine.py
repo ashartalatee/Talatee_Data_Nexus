@@ -1,6 +1,7 @@
 from engine.loader import load_sales, load_products
 from engine.validator import validate_sales
 from engine.cleaner import clean_sales
+from engine.transformer import transform_sales
 import logging
 
 logging.basicConfig(
@@ -19,11 +20,12 @@ def run():
 
     sales = validate_sales(sales)
     sales = clean_sales(sales)
+    sales = transform_sales(sales)
 
-    print("Cleaned Sales Data:")
+    print("Transformed Data:")
     print(sales)
 
-    logging.info("Cleaning completed")
+    logging.info("Transformation completed")
 
 
 if __name__ == "__main__":
