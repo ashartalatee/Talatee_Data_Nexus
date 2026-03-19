@@ -1,5 +1,8 @@
 import logging
 import pandas as pd
+from engine.config_loader import load_config
+
+config = load_config()
 
 REQUIRED_COLUMNS = [
     "order_id",
@@ -14,7 +17,9 @@ def validate_sales(df):
 
     logging.info("Starting sales data validation")
 
-    # cek kolom wajib
+    # =========================
+    # CHECK REQUIRED COLUMNS
+    # =========================
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
 
     if missing_columns:
@@ -23,25 +28,26 @@ def validate_sales(df):
 
     logging.info("All required columns exist")
 
-    # cek missing values
+    # =========================
+    # CHECK MISSING VALUES
+    # =========================
     invalid_rows = df[df.isnull().any(axis=1)]
 
     if len(invalid_rows) > 0:
 
         logging.warning(f"{len(invalid_rows)} invalid rows detected")
 
-        invalid_rows.to_csv(
-            "logs/error_rows.csv",
-            index=False
-        )
+        error_path = config["paths"]["error_log"]
 
-        logging.info("Invalid rows saved to logs/error_rows.csv")
+        # simpan error rows ke config path
+        invalid_rows.to_csv(error_path, index=False)
 
-        # buang baris invalid dari dataset
+        logging.info(f"Invalid rows saved to {error_path}")
+
+        # buang baris invalid
         df = df.dropna()
 
     else:
-
         logging.info("No invalid rows detected")
 
     logging.info("Validation finished")

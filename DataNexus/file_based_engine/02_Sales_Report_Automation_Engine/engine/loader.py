@@ -1,38 +1,23 @@
+from engine.config_loader import load_config
 import pandas as pd
 import logging
+
+config = load_config()
 
 
 def load_sales():
 
-    logging.info("Loading sales data...")
+    path = config["paths"]["sales_data"]
 
-    try:
-        df = pd.read_csv("input/sales_data.csv")
+    logging.info(f"Loading sales data from {path}")
 
-        logging.info(f"Sales data loaded successfully. Rows: {len(df)}")
-
-        return df
-
-    except Exception as e:
-
-        logging.error(f"Failed to load sales data: {e}")
-
-        raise
+    return pd.read_csv(path)
 
 
 def load_products():
 
-    logging.info("Loading products data...")
+    path = config["paths"]["products_data"]
 
-    try:
-        df = pd.read_csv("input/products.csv")
+    logging.info(f"Loading products data from {path}")
 
-        logging.info(f"Products data loaded successfully. Rows: {len(df)}")
-
-        return df
-
-    except Exception as e:
-
-        logging.error(f"Failed to load products data: {e}")
-
-        raise
+    return pd.read_csv(path)

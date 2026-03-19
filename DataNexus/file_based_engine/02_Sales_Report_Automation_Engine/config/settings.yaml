@@ -1,0 +1,6 @@
+paths:
+  sales_data: input/sales_data.csv
+  products_data: input/products.csv
+  output_report: output/sales_report.xlsx
+  error_log: logs/error_rows.csv
+  log_file: logs/engine.log
