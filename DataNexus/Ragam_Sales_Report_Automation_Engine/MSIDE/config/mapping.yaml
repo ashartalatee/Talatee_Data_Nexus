@@ -1,0 +1,17 @@
+shopee:
+  date: order_date
+  product: product_name
+  price: price
+  quantity: quantity
+
+tokopedia:
+  date: date
+  product: product
+  price: total_price
+  quantity: qty
+
+tiktok:
+  date: created_at
+  product: name
+  price: price_per_item
+  quantity: items_sold

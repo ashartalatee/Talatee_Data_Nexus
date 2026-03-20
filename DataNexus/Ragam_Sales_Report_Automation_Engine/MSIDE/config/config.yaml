@@ -1,0 +1,6 @@
+data_sources:
+  shopee: data/raw/shopee.csv
+  tokopedia: data/raw/tokopedia.csv
+  tiktok: data/raw/tiktok.csv
+
+output_path: data/output/
