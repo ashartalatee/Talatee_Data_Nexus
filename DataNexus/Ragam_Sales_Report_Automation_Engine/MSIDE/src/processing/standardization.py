@@ -1,5 +1,9 @@
 import pandas as pd
 from src.utils.config import load_mapping
+from src.utils.logger import get_logger
+
+
+logger = get_logger()
 
 
 # ==============================
@@ -7,10 +11,10 @@ from src.utils.config import load_mapping
 # ==============================
 
 def standardize_single_df(df, source, mapping):
-    print(f"🧩 Standardizing {source}")
+    logger.info(f"Standardizing source: {source}")
 
     if source not in mapping:
-        print(f"❌ No mapping found for {source}")
+        logger.error(f"No mapping found for source: {source}")
         return pd.DataFrame()
 
     map_config = mapping[source]
@@ -18,39 +22,52 @@ def standardize_single_df(df, source, mapping):
     try:
         standardized_df = pd.DataFrame()
 
+        # ==============================
+        # BASIC TRANSFORM
+        # ==============================
         standardized_df["date"] = pd.to_datetime(
-            df[map_config["date"]], errors='coerce'
+            df[map_config["date"]], errors="coerce"
         )
 
         standardized_df["product"] = df[map_config["product"]].astype(str)
 
         standardized_df["price"] = pd.to_numeric(
-            df[map_config["price"]], errors='coerce'
+            df[map_config["price"]], errors="coerce"
         )
 
         standardized_df["quantity"] = pd.to_numeric(
-            df[map_config["quantity"]], errors='coerce'
+            df[map_config["quantity"]], errors="coerce"
         )
 
-        # 🔥 CORE METRIC
+        # ==============================
+        # CORE METRIC
+        # ==============================
         standardized_df["revenue"] = (
             standardized_df["price"] * standardized_df["quantity"]
         )
 
         # ==============================
-        # 🔥 UPGRADE 1: CLEAN NEGATIVE
+        # CLEAN NEGATIVE
         # ==============================
+        before_count = len(standardized_df)
+
         standardized_df = standardized_df[
             standardized_df["revenue"] >= 0
         ]
 
+        after_count = len(standardized_df)
+        removed = before_count - after_count
+
+        if removed > 0:
+            logger.debug(f"{source}: removed {removed} negative revenue rows")
+
         # ==============================
-        # 🔥 UPGRADE 2: BUSINESS FEATURE
+        # BUSINESS FEATURE
         # ==============================
         standardized_df["day_of_week"] = standardized_df["date"].dt.day_name()
 
         # ==============================
-        # 🔥 UPGRADE 3: ANOMALY DETECTION
+        # ANOMALY DETECTION
         # ==============================
         mean_rev = standardized_df["revenue"].mean()
 
@@ -62,7 +79,7 @@ def standardize_single_df(df, source, mapping):
             standardized_df["is_anomaly"] = False
 
         # ==============================
-        # 🔥 UPGRADE 4: FINAL CLEAN
+        # FINAL CLEAN
         # ==============================
         standardized_df = standardized_df.fillna({
             "price": 0,
@@ -74,14 +91,16 @@ def standardize_single_df(df, source, mapping):
         standardized_df["source"] = source
 
         # ==============================
-        # 🔥 UPGRADE 5: SORT
+        # SORT
         # ==============================
         standardized_df = standardized_df.sort_values("date")
+
+        logger.debug(f"{source}: standardization complete ({len(standardized_df)} rows)")
 
         return standardized_df
 
     except Exception as e:
-        print(f"❌ Error standardizing {source}: {e}")
+        logger.error(f"Error standardizing {source}", exc_info=True)
         return pd.DataFrame()
 
 
@@ -93,8 +112,15 @@ def standardize_all(cleaned_dfs):
     mapping = load_mapping()
     standardized_dfs = []
 
+    logger.info("Starting standardization process...")
+
     for df in cleaned_dfs:
         if df.empty:
+            logger.debug("Skipping empty dataframe")
+            continue
+
+        if "source" not in df.columns:
+            logger.error("Missing 'source' column in dataframe")
             continue
 
         source = df["source"].iloc[0]
@@ -103,5 +129,9 @@ def standardize_all(cleaned_dfs):
 
         if not std_df.empty:
             standardized_dfs.append(std_df)
+        else:
+            logger.warning(f"{source}: standardization resulted in empty dataframe")
+
+    logger.info(f"Standardization finished: {len(standardized_dfs)} datasets processed")
 
     return standardized_dfs

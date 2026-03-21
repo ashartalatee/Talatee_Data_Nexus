@@ -1,23 +1,27 @@
 import pandas as pd
 import os
 
+from src.utils.logger import get_logger
+
 
 # ==============================
-# 🔥 UPGRADE 1: MERGE ALL DATA
+# 🔥 MERGE ALL DATA
 # ==============================
-def merge_data(standardized_dfs):
-    print("🔗 Merging all datasets...")
+def merge_data(standardized_dfs, logger):
+    logger.info("Merging datasets...")
 
     master_df = pd.concat(standardized_dfs, ignore_index=True)
+
+    logger.debug(f"Merged rows: {len(master_df)}")
 
     return master_df
 
 
 # ==============================
-# 🔥 UPGRADE 2: REMOVE DUPLICATES
+# 🔥 REMOVE DUPLICATES
 # ==============================
-def remove_duplicates(df):
-    print("🧹 Removing duplicates...")
+def remove_duplicates(df, logger):
+    logger.info("Removing duplicates...")
 
     before = len(df)
 
@@ -26,36 +30,38 @@ def remove_duplicates(df):
     )
 
     after = len(df)
+    removed = before - after
 
-    print(f"📊 Removed duplicates: {before - after}")
+    logger.info(f"Duplicates removed: {removed}")
+    logger.debug(f"Remaining rows: {after}")
 
     return df
 
 
 # ==============================
-# 🔥 UPGRADE 3: DATA INTEGRITY CHECK
+# 🔥 DATA INTEGRITY CHECK
 # ==============================
-def validate_master_data(df):
-    print("🔍 Validating master dataset...")
+def validate_master_data(df, logger):
+    logger.info("Validating master dataset...")
 
     if df.empty:
-        print("❌ Master dataset is empty!")
+        logger.error("Master dataset is empty!")
         return df
 
     if df["date"].isnull().any():
-        print("⚠️ Warning: Missing date detected")
+        logger.warning("Missing date detected")
 
     if (df["revenue"] < 0).any():
-        print("⚠️ Warning: Negative revenue detected")
+        logger.warning("Negative revenue detected")
 
     return df
 
 
 # ==============================
-# 🔥 UPGRADE 4: FINAL SORTING
+# 🔥 FINAL SORTING
 # ==============================
-def sort_master_data(df):
-    print("📅 Sorting master dataset...")
+def sort_master_data(df, logger):
+    logger.info("Sorting dataset by date...")
 
     df = df.sort_values("date")
 
@@ -63,29 +69,31 @@ def sort_master_data(df):
 
 
 # ==============================
-# 🔥 UPGRADE 5: SAVE OUTPUT
+# 🔥 SAVE OUTPUT
 # ==============================
-def save_master_data(df, path="data/output/master_data.csv"):
-    print("💾 Saving master dataset...")
+def save_master_data(df, logger, path="data/output/master_data.csv"):
+    logger.info("Saving master dataset...")
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     df.to_csv(path, index=False)
 
-    print(f"✅ Saved to {path}")
+    logger.info(f"Saved to {path}")
 
 
 # ==============================
-# MAIN MERGE PIPELINE
+# 🔥 MAIN MERGE PIPELINE
 # ==============================
 def merge_all(standardized_dfs):
-    df = merge_data(standardized_dfs)
+    logger = get_logger()
 
-    df = remove_duplicates(df)
+    df = merge_data(standardized_dfs, logger)
 
-    df = validate_master_data(df)
+    df = remove_duplicates(df, logger)
 
-    df = sort_master_data(df)
+    df = validate_master_data(df, logger)
 
-    save_master_data(df)
+    df = sort_master_data(df, logger)
+
+    save_master_data(df, logger)
 
     return df

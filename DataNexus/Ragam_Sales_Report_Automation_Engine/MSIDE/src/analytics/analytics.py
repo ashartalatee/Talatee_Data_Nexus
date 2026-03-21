@@ -1,12 +1,15 @@
 import pandas as pd
 import os
+from src.utils.logger import get_logger
+
+logger = get_logger()
 
 
 # ==============================
-# 🔥 UPGRADE 1: DAILY REVENUE
+# DAILY REVENUE
 # ==============================
 def daily_revenue(df):
-    print("📅 Calculating daily revenue...")
+    logger.info("Calculating daily revenue")
 
     result = (
         df.groupby("date")["revenue"]
@@ -19,10 +22,10 @@ def daily_revenue(df):
 
 
 # ==============================
-# 🔥 UPGRADE 2: TOP PRODUCTS
+# TOP PRODUCTS
 # ==============================
 def top_products(df, top_n=5):
-    print("🏆 Calculating top products...")
+    logger.info("Calculating top products")
 
     result = (
         df.groupby("product")["revenue"]
@@ -36,10 +39,10 @@ def top_products(df, top_n=5):
 
 
 # ==============================
-# 🔥 UPGRADE 3: SOURCE PERFORMANCE
+# SOURCE PERFORMANCE
 # ==============================
 def source_performance(df):
-    print("📊 Calculating source performance...")
+    logger.info("Calculating source performance")
 
     result = (
         df.groupby("source")["revenue"]
@@ -52,14 +55,15 @@ def source_performance(df):
 
 
 # ==============================
-# 🔥 UPGRADE 4: GROWTH ANALYSIS
+# GROWTH ANALYSIS
 # ==============================
 def revenue_growth(df):
-    print("📈 Calculating revenue growth...")
+    logger.info("Calculating revenue growth")
 
     daily = daily_revenue(df)
 
     daily["prev_revenue"] = daily["revenue"].shift(1)
+
     daily["growth"] = (
         (daily["revenue"] - daily["prev_revenue"]) /
         daily["prev_revenue"]
@@ -69,40 +73,44 @@ def revenue_growth(df):
 
 
 # ==============================
-# 🔥 UPGRADE 5: SAVE ANALYTICS
+# SAVE ANALYTICS (RAPI)
 # ==============================
 def save_analytics(df_dict, base_path="data/output/analytics"):
-    print("💾 Saving analytics...")
+    logger.info("Saving analytics files")
 
     os.makedirs(base_path, exist_ok=True)
 
     for name, df in df_dict.items():
-        path = f"{base_path}/{name}.csv"
+        path = os.path.join(base_path, f"{name}.csv")
         df.to_csv(path, index=False)
-        print(f"✅ Saved {name} → {path}")
+
+        logger.info(f"Saved {name} → {path}")
 
 
 # ==============================
-# 🔥 FINAL ANALYTICS PIPELINE
+# FINAL ANALYTICS PIPELINE
 # ==============================
 def run_analytics(master_df):
-    print("🧠 Running analytics engine...")
+    logger.warning("📊 Running Analytics Engine...")
+
+    if master_df is None or master_df.empty:
+        logger.warning("Master data kosong, analytics dilewati")
+        return {}
 
     daily = daily_revenue(master_df)
     products = top_products(master_df)
     sources = source_performance(master_df)
     growth = revenue_growth(master_df)
 
-    save_analytics({
-        "daily_revenue": daily,
-        "top_products": products,
-        "source_performance": sources,
-        "growth": growth
-    })
-
-    return {
+    results = {
         "daily_revenue": daily,
         "top_products": products,
         "source_performance": sources,
         "growth": growth
     }
+
+    save_analytics(results)
+
+    logger.warning("📊 Analytics selesai")
+
+    return results

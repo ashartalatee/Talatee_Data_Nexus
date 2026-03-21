@@ -43,3 +43,23 @@ Thumbs.db
 # =========================
 *.log
 *.engine.log
+
+# output
+data/output/
+
+# logs
+*.log
+
+# temp files
+*.lock
+.~lock.*
+
+# python
+__pycache__/
+*.pyc
+
+# env
+.env
+
+# streamlit
+.streamlit/

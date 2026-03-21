@@ -1,0 +1,27 @@
+=== BUSINESS INTELLIGENCE REPORT ===
+
+[MEDIUM] SCALE_PRODUCT
+Product : kaos polos
+Action  : Naikkan budget ads + tambah stok + buat variasi konten
+Reason  : Top 30% revenue product
+----------------------------------------
+[LOW] EVALUATE_PRODUCT
+Product : mouse
+Action  : Evaluasi harga / positioning / pertimbangkan stop
+Reason  : Bottom 30% revenue product
+----------------------------------------
+[LOW] FOCUS_SOURCE
+Source  : tokopedia
+Action  : Double down channel ini (ads + organic)
+Reason  : Highest revenue channel
+----------------------------------------
+[LOW] IMPROVE_SOURCE
+Source  : tiktok
+Action  : Audit funnel, konten, dan targeting channel ini
+Reason  : Lowest revenue channel
+----------------------------------------
+[MEDIUM] OPPORTUNITY
+Insight : Revenue up 94.85%
+Action  : Scale sekarang sebelum momentum hilang
+Reason  : -
+----------------------------------------
