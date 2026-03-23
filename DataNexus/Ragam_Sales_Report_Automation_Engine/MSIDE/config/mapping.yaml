@@ -1,17 +1,20 @@
 shopee:
-  date: order_date
-  product: product_name
-  price: price
-  quantity: quantity
+  order_id: order_id
+  date: create_time
+  revenue: item_price
+  product: null
+  quantity: null
 
 tokopedia:
+  order_id: invoice
   date: date
-  product: product
-  price: total_price
-  quantity: qty
+  revenue: total
+  product: null
+  quantity: null
 
 tiktok:
-  date: created_at
-  product: name
-  price: price_per_item
-  quantity: items_sold
+  order_id: id
+  date: timestamp
+  revenue: sales_amount
+  product: null
+  quantity: null

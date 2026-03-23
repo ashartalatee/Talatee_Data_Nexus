@@ -14,52 +14,99 @@ from src.alert.alert import run_alerts
 from src.intelligence.intelligence_engine import run_intelligence
 
 
+# ==============================
+#  SAFE EXECUTOR (ANTI CRASH)
+# ==============================
+def safe_run(step_name, func, logger, *args, default=None, **kwargs):
+    try:
+        logger.info(f"Running step: {step_name}")
+        result = func(*args, **kwargs)
+        logger.info(f"{step_name} completed")
+        return result
+    except Exception:
+        logger.error(f"{step_name} FAILED", exc_info=True)
+        return default
+
+
+# ==============================
+#  MAIN ENGINE
+# ==============================
 def main(mode="normal"):
-    # ==============================
-    # LOGGER INIT
-    # ==============================
     logger = get_logger(mode)
 
     logger.warning("🚀 MSIDE Engine Starting...\n")
 
     try:
         # ==============================
-        # LOAD CONFIG
+        # CONFIG
         # ==============================
-        config = load_config()
+        config = safe_run("Load Config", load_config, logger, default={})
 
         # ==============================
         # DATA PIPELINE
         # ==============================
-        dfs = load_all_data(config)
-        validated = validate_all(dfs)
-        cleaned = clean_all(validated)
-        standardized = standardize_all(cleaned)
+        dfs = safe_run("Load Data", load_all_data, logger, config, default=[])
 
-        master_df = merge_all(standardized)
+        validated = safe_run("Validation", validate_all, logger, dfs, default=[])
+
+        cleaned = safe_run("Cleaning", clean_all, logger, validated, default=[])
+
+        standardized = safe_run(
+            "Standardization", standardize_all, logger, cleaned, default=[]
+        )
+
+        master_df = safe_run(
+            "Merging", merge_all, logger, standardized, default=None
+        )
+
+        if master_df is None or master_df.empty:
+            logger.warning("⚠️ Master data kosong, pipeline lanjut")
 
         logger.warning("📊 Data processed")
 
         # ==============================
         # ANALYTICS
         # ==============================
-        analytics = run_analytics(master_df)
+        analytics = safe_run(
+            "Analytics", run_analytics, logger, master_df, default={}
+        )
+
+        if not analytics:
+            logger.warning("⚠️ Analytics kosong")
 
         logger.warning("📈 Analytics generated")
 
         # ==============================
-        # ALERT ENGINE
+        # ALERT ENGINE (SAFE)
         # ==============================
-        alerts = run_alerts(master_df, analytics["daily_revenue"])
-
-        logger.warning(f"🚨 Alerts generated: {len(alerts)}")
+        if analytics and "daily_revenue" in analytics:
+            alerts = safe_run(
+                "Alerts",
+                run_alerts,
+                logger,
+                master_df,
+                analytics["daily_revenue"],
+                default=[]
+            )
+            logger.warning(f"🚨 Alerts generated: {len(alerts)}")
+        else:
+            logger.warning("⚠️ Alert dilewati (analytics tidak tersedia)")
+            alerts = []
 
         # ==============================
-        # INTELLIGENCE ENGINE
+        # INTELLIGENCE ENGINE (SAFE)
         # ==============================
-        run_intelligence(master_df, analytics)
-
-        logger.warning("🧠 Intelligence generated")
+        if analytics:
+            safe_run(
+                "Intelligence",
+                run_intelligence,
+                logger,
+                master_df,
+                analytics,
+            )
+            logger.warning("🧠 Intelligence generated")
+        else:
+            logger.warning("⚠️ Intelligence dilewati")
 
         # ==============================
         # FINAL SUMMARY
@@ -72,12 +119,12 @@ def main(mode="normal"):
         logger.warning("→ data/output/logs/mside.log")
         logger.warning("=" * 45)
 
-    except Exception as e:
-        logger.error("❌ ENGINE FAILED", exc_info=True)
+    except Exception:
+        logger.error("❌ ENGINE FAILED (FATAL)", exc_info=True)
 
 
 # ==============================
-# ENTRY POINT (CLI SUPPORT)
+#  ENTRY POINT (CLI)
 # ==============================
 if __name__ == "__main__":
     import sys
