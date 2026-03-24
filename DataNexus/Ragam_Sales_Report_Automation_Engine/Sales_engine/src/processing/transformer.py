@@ -1,20 +1,23 @@
 import pandas as pd
+from src.utils.logger import get_logger
+
+logger = get_logger()
 
 
 # ==============================
-# STANDARD FIELD EXTRACTION
+# EXTRACTION HELPERS
 # ==============================
 
 def extract_price(df):
     for col in df.columns:
-        if "price" in col:
+        if "price" in col.lower():
             return pd.to_numeric(df[col], errors='coerce')
     return pd.Series([0] * len(df))
 
 
 def extract_quantity(df):
     for col in df.columns:
-        if "qty" in col or "quantity" in col or "items_sold" in col:
+        if any(x in col.lower() for x in ["qty", "quantity", "items_sold"]):
             return pd.to_numeric(df[col], errors='coerce')
     return pd.Series([1] * len(df))
 
@@ -30,57 +33,78 @@ def extract_product(df):
     for col in ["product_name", "product", "name"]:
         if col in df.columns:
             return df[col].astype(str)
-    return pd.Series(["unknown"] * len(df))
+    return pd.Series(["UNKNOWN_PRODUCT"] * len(df))
 
 
 # ==============================
-# TRANSFORMATION LOGIC
+# TRANSFORM SINGLE DF (FINAL)
 # ==============================
 
 def transform_single_df(df, source):
-    print(f"🔄 Transforming {source}")
+    logger.info(f"Transforming {source}")
 
-    # Extract standard fields
+    df = df.copy()
+
+    # ==============================
+    # EXTRACTION
+    # ==============================
     df["price"] = extract_price(df)
     df["quantity"] = extract_quantity(df)
     df["date"] = extract_date(df)
     df["product"] = extract_product(df)
 
-    # 🔥 CORE METRIC
+    # ==============================
+    #  HARD VALIDATION 1: DATE
+    # ==============================
+    if df["date"].isna().all():
+        raise ValueError(f"{source}: CRITICAL → all date invalid")
+
+    # ==============================
+    # CORE METRIC
+    # ==============================
     df["revenue"] = df["price"] * df["quantity"]
 
     # ==============================
-    # 🔥 UPGRADE 1: HANDLE NEGATIVE / ERROR DATA
+    #  HARD VALIDATION 2: REVENUE
+    # ==============================
+    if df["revenue"].fillna(0).sum() == 0:
+        raise ValueError(f"{source}: CRITICAL → revenue all zero")
+
+    # ==============================
+    # CLEANING
     # ==============================
     df = df[df["revenue"] >= 0]
 
+    df["price"] = df["price"].fillna(0)
+    df["quantity"] = df["quantity"].fillna(0)
+    df["revenue"] = df["revenue"].fillna(0)
+    df["product"] = df["product"].fillna("UNKNOWN_PRODUCT")
+
     # ==============================
-    # 🔥 UPGRADE 2: BUSINESS FEATURE
+    # FEATURE ENGINEERING
     # ==============================
     df["day_of_week"] = df["date"].dt.day_name()
 
     # ==============================
-    # 🔥 UPGRADE 3: ANOMALY DETECTION
+    # ANOMALY DETECTION
     # ==============================
     mean_revenue = df["revenue"].mean()
 
-    if pd.notnull(mean_revenue) and mean_revenue != 0:
-        df["is_anomaly"] = df["revenue"] > mean_revenue * 5
-    else:
-        df["is_anomaly"] = False
+    df["is_anomaly"] = (
+        df["revenue"] > mean_revenue * 5
+        if pd.notnull(mean_revenue) and mean_revenue > 0
+        else False
+    )
 
     # ==============================
-    # 🔥 UPGRADE 4: SORT DATA (ANALYTICS READY)
+    # FINAL CLEAN
     # ==============================
+    df = df.dropna(subset=["date"])
     df = df.sort_values("date")
 
-    # ==============================
-    # 🔥 UPGRADE 5: FILL FINAL NULL (BIAR AMAN)
-    # ==============================
-    df["price"] = df["price"].fillna(0)
-    df["quantity"] = df["quantity"].fillna(0)
-    df["revenue"] = df["revenue"].fillna(0)
-    df["product"] = df["product"].fillna("unknown")
+    df["source"] = source
+
+    logger.info(f"{source}: success ({len(df)} rows)")
 
     return df[[
         "date",
@@ -101,12 +125,31 @@ def transform_single_df(df, source):
 def transform_all(cleaned_dfs):
     transformed_dfs = []
 
-    for df in cleaned_dfs:
+    logger.info("Starting transformation process...")
+
+    for i, df in enumerate(cleaned_dfs):
+
+        if df is None:
+            logger.warning(f"Dataset index {i} is None, skipped")
+            continue
+
         if df.empty:
+            logger.warning(f"Dataset index {i} is empty, skipped")
+            continue
+
+        if "source" not in df.columns:
+            logger.error("Missing 'source' column")
             continue
 
         source = df["source"].iloc[0]
-        transformed_df = transform_single_df(df.copy(), source)
-        transformed_dfs.append(transformed_df)
+
+        try:
+            transformed_df = transform_single_df(df, source)
+            transformed_dfs.append(transformed_df)
+
+        except Exception as e:
+            logger.error(f"{source}: FAILED → {str(e)}")
+
+    logger.info(f"Transformation finished: {len(transformed_dfs)} datasets")
 
     return transformed_dfs

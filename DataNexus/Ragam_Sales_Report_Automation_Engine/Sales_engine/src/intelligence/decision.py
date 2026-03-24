@@ -8,10 +8,10 @@ logger = setup_logger("DECISION")
 # PRODUCT RECOMMENDATION
 # ==============================
 def recommend_products(master_df):
-    logger.info(" Generating product recommendations...")
+    logger.info("Generating product recommendations...")
 
     if master_df.empty:
-        logger.warning(" Master data kosong")
+        logger.warning("Master data kosong")
         return []
 
     product_perf = (
@@ -36,7 +36,6 @@ def recommend_products(master_df):
 
     recs = []
 
-    # TOP PRODUCTS
     for _, row in top.iterrows():
         recs.append({
             "type": "SCALE_PRODUCT",
@@ -45,7 +44,6 @@ def recommend_products(master_df):
             "reason": "Top 30% revenue product"
         })
 
-    # LOW PRODUCTS
     for _, row in low.iterrows():
         recs.append({
             "type": "EVALUATE_PRODUCT",
@@ -54,20 +52,20 @@ def recommend_products(master_df):
             "reason": "Bottom 30% revenue product"
         })
 
-    logger.info(f" Top products: {list(top['product'])}")
-    logger.info(f" Low products: {list(low['product'])}")
+    logger.info(f"Top products: {list(top['product'])}")
+    logger.info(f"Low products: {list(low['product'])}")
 
     return recs
 
 
 # ==============================
-# SOURCE RECOMMENDATION
+# SOURCE RECOMMENDATION (FIXED)
 # ==============================
 def recommend_source(master_df):
-    logger.info(" Evaluating source performance...")
+    logger.info("Evaluating source performance...")
 
     if master_df.empty:
-        logger.warning(" Master data kosong")
+        logger.warning("Master data kosong")
         return []
 
     source_perf = (
@@ -80,11 +78,24 @@ def recommend_source(master_df):
     if source_perf.empty:
         return []
 
+    # ✅ FIX: handle single source
+    if len(source_perf) == 1:
+        source = source_perf.iloc[0]["source"]
+
+        logger.info("Single source detected")
+
+        return [{
+            "type": "INFO",
+            "source": source,
+            "revenue": source_perf.iloc[0]["revenue"],
+            "reason": "Only one channel available"
+        }]
+
     best = source_perf.iloc[0]
     worst = source_perf.iloc[-1]
 
-    logger.info(f" Best source: {best['source']}")
-    logger.info(f" Worst source: {worst['source']}")
+    logger.info(f"Best source: {best['source']}")
+    logger.info(f"Worst source: {worst['source']}")
 
     return [
         {
@@ -103,59 +114,73 @@ def recommend_source(master_df):
 
 
 # ==============================
-# GROWTH RECOMMENDATION
+# GROWTH RECOMMENDATION (UPGRADED)
 # ==============================
 def recommend_growth(data):
-    logger.info(" Evaluating growth trend...")
+    logger.info("Evaluating growth trend...")
 
     if data is None:
         return []
 
-    # handle dict / dataframe
-    if isinstance(data, dict) and "daily_revenue" in data:
-        daily_df = data["daily_revenue"]
+    # ✅ Ambil growth_summary (bukan daily lagi)
+    if isinstance(data, dict) and "growth_summary" in data:
+        summary = data["growth_summary"]
     else:
-        daily_df = data
+        summary = data
 
-    if not isinstance(daily_df, pd.DataFrame):
-        daily_df = pd.DataFrame(daily_df)
+    if not isinstance(summary, pd.DataFrame):
+        summary = pd.DataFrame(summary)
 
-    if daily_df.empty:
+    if summary.empty:
         return []
 
-    if "growth" not in daily_df.columns:
-        daily_df["growth"] = daily_df["revenue"].pct_change() * 100
+    row = summary.iloc[0]
 
-    latest = daily_df.iloc[-1]
+    avg_trend = row.get("avg_trend_pct", 0)
+    volatility = row.get("volatility", 0)
+    trend = row.get("trend", "UNKNOWN")
 
-    growth_value = latest.get("growth", 0)
+    # ==============================
+    # DECISION LOGIC (SMART)
+    # ==============================
+    if trend == "DOWNTREND":
+        logger.warning(f"Downtrend detected: {avg_trend:.2f}%")
 
-    if pd.isna(growth_value):
-        return []
-
-    if growth_value < 0:
-        logger.warning(f" Revenue declining: {growth_value:.2f}%")
         return [{
             "type": "WARNING",
-            "message": f"Revenue down {growth_value:.2f}%"
+            "message": f"Revenue downtrend ({avg_trend:.2f}%)",
+            "reason": "Consistent decline over time"
         }]
 
-    elif growth_value > 20:
-        logger.info(f" Revenue spike: {growth_value:.2f}%")
+    elif volatility > 0.5:
+        logger.warning("High volatility detected")
+
+        return [{
+            "type": "UNSTABLE",
+            "message": "Revenue unstable (high fluctuation)",
+            "reason": "Inconsistent performance"
+        }]
+
+    elif trend == "UPTREND":
+        logger.info(f"Uptrend detected: {avg_trend:.2f}%")
+
         return [{
             "type": "OPPORTUNITY",
-            "message": f"Revenue up {growth_value:.2f}%"
+            "message": f"Revenue growing ({avg_trend:.2f}%)",
+            "reason": "Positive growth trend"
         }]
 
-    logger.info(f" Revenue stable: {growth_value:.2f}%")
+    logger.info("Stable trend detected")
+
     return [{
         "type": "STABLE",
-        "message": f"Growth {growth_value:.2f}%"
+        "message": f"Trend {trend}",
+        "reason": "No significant change"
     }]
 
 
 # ==============================
-# PRIORITY ENGINE
+# PRIORITY ENGINE (UPGRADED)
 # ==============================
 def add_priority(decisions):
     for d in decisions:
@@ -166,6 +191,9 @@ def add_priority(decisions):
         elif d["type"] in ["OPPORTUNITY", "SCALE_PRODUCT"]:
             d["priority"] = "MEDIUM"
 
+        elif d["type"] in ["UNSTABLE"]:
+            d["priority"] = "MEDIUM"
+
         else:
             d["priority"] = "LOW"
 
@@ -173,7 +201,7 @@ def add_priority(decisions):
 
 
 # ==============================
-# ACTION ENGINE
+# ACTION ENGINE (UPGRADED)
 # ==============================
 def add_action(decisions):
     for d in decisions:
@@ -185,16 +213,22 @@ def add_action(decisions):
             d["action"] = "Evaluasi harga / positioning / pertimbangkan stop"
 
         elif d["type"] == "FOCUS_SOURCE":
-            d["action"] = "Double down channel ini (ads + organic)"
+            d["action"] = "Scale channel ini (ads + konten + retargeting)"
 
         elif d["type"] == "IMPROVE_SOURCE":
-            d["action"] = "Audit funnel, konten, dan targeting channel ini"
+            d["action"] = "Audit funnel, CTR, dan targeting"
 
         elif d["type"] == "WARNING":
-            d["action"] = "Cek penurunan: produk, traffic, atau campaign error"
+            d["action"] = "Cek campaign, traffic drop, dan funnel error"
 
         elif d["type"] == "OPPORTUNITY":
-            d["action"] = "Scale sekarang sebelum momentum hilang"
+            d["action"] = "Tambah budget & scale winning ads"
+
+        elif d["type"] == "UNSTABLE":
+            d["action"] = "Stabilkan ads & optimasi funnel conversion"
+
+        elif d["type"] == "INFO":
+            d["action"] = "Tambahkan channel baru untuk perbandingan"
 
         else:
             d["action"] = "Monitor performa"

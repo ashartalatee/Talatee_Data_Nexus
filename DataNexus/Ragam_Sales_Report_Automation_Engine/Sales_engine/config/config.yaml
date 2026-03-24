@@ -1,6 +1,17 @@
+# ==============================
+# MODE CONFIG
+# ==============================
+single_file: data/raw/hari_02_shopee_reality.csv  # 🔥 aktif untuk test harian
+
+# ==============================
+# MULTI SOURCE (fallback mode)
+# ==============================
 data_sources:
   shopee: data/raw/shopee.csv
   tokopedia: data/raw/tokopedia.csv
   tiktok: data/raw/tiktok.csv
 
+# ==============================
+# OUTPUT
+# ==============================
 output_path: data/output/

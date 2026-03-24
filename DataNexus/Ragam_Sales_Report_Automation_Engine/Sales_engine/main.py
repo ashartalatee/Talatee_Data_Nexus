@@ -1,4 +1,5 @@
-import os
+import sys
+import traceback
 
 from src.utils.config import load_config
 from src.utils.logger import get_logger
@@ -15,16 +16,21 @@ from src.intelligence.intelligence_engine import run_intelligence
 
 
 # ==============================
-#  SAFE EXECUTOR (ANTI CRASH)
+#  SAFE EXECUTOR (FINAL)
 # ==============================
-def safe_run(step_name, func, logger, *args, default=None, **kwargs):
+def safe_run(step_name, func, logger, *args, critical=False, default=None, **kwargs):
     try:
-        logger.info(f"Running step: {step_name}")
+        logger.info(f"▶ Running: {step_name}")
         result = func(*args, **kwargs)
-        logger.info(f"{step_name} completed")
+        logger.info(f"✅ Completed: {step_name}")
         return result
-    except Exception:
-        logger.error(f"{step_name} FAILED", exc_info=True)
+
+    except Exception as e:
+        logger.error(f"❌ FAILED: {step_name} → {str(e)}", exc_info=True)
+
+        if critical:
+            raise RuntimeError(f"CRITICAL FAILURE at step: {step_name}")
+
         return default
 
 
@@ -34,51 +40,97 @@ def safe_run(step_name, func, logger, *args, default=None, **kwargs):
 def main(mode="normal"):
     logger = get_logger(mode)
 
-    logger.warning("🚀 MSIDE Engine Starting...\n")
+    logger.warning("\n🚀 MSIDE Engine Starting...\n")
 
     try:
         # ==============================
         # CONFIG
         # ==============================
-        config = safe_run("Load Config", load_config, logger, default={})
-
-        # ==============================
-        # DATA PIPELINE
-        # ==============================
-        dfs = safe_run("Load Data", load_all_data, logger, config, default=[])
-
-        validated = safe_run("Validation", validate_all, logger, dfs, default=[])
-
-        cleaned = safe_run("Cleaning", clean_all, logger, validated, default=[])
-
-        standardized = safe_run(
-            "Standardization", standardize_all, logger, cleaned, default=[]
+        config = safe_run(
+            "Load Config",
+            load_config,
+            logger,
+            critical=True
         )
 
+        if not config:
+            raise ValueError("CRITICAL: Config kosong")
+
+        # ==============================
+        # DATA PIPELINE (STRICT MODE)
+        # ==============================
+        dfs = safe_run(
+            "Load Data",
+            load_all_data,
+            logger,
+            config,
+            critical=True
+        )
+
+        if not dfs:
+            raise ValueError("CRITICAL: Tidak ada data yang berhasil diload")
+
+        validated = safe_run(
+            "Validation",
+            validate_all,
+            logger,
+            dfs,
+            critical=True
+        )
+
+        cleaned = safe_run(
+            "Cleaning",
+            clean_all,
+            logger,
+            validated,
+            critical=True
+        )
+
+        standardized = safe_run(
+            "Standardization",
+            standardize_all,
+            logger,
+            cleaned,
+            critical=True
+        )
+
+        if not standardized:
+            raise ValueError("CRITICAL: Semua data gagal distandardisasi")
+
         master_df = safe_run(
-            "Merging", merge_all, logger, standardized, default=None
+            "Merging",
+            merge_all,
+            logger,
+            standardized,
+            critical=True
         )
 
         if master_df is None or master_df.empty:
-            logger.warning("⚠️ Master data kosong, pipeline lanjut")
+            raise ValueError("CRITICAL: Master data kosong")
 
-        logger.warning("📊 Data processed")
+        logger.warning("📊 Data processed successfully")
 
         # ==============================
         # ANALYTICS
         # ==============================
         analytics = safe_run(
-            "Analytics", run_analytics, logger, master_df, default={}
+            "Analytics",
+            run_analytics,
+            logger,
+            master_df,
+            default={}
         )
 
         if not analytics:
-            logger.warning("⚠️ Analytics kosong")
+            logger.warning("⚠️ Analytics kosong → lanjut tanpa insight")
 
         logger.warning("📈 Analytics generated")
 
         # ==============================
-        # ALERT ENGINE (SAFE)
+        # ALERT ENGINE
         # ==============================
+        alerts = []
+
         if analytics and "daily_revenue" in analytics:
             alerts = safe_run(
                 "Alerts",
@@ -88,13 +140,11 @@ def main(mode="normal"):
                 analytics["daily_revenue"],
                 default=[]
             )
-            logger.warning(f"🚨 Alerts generated: {len(alerts)}")
-        else:
-            logger.warning("⚠️ Alert dilewati (analytics tidak tersedia)")
-            alerts = []
+
+        logger.warning(f"🚨 Alerts generated: {len(alerts)}")
 
         # ==============================
-        # INTELLIGENCE ENGINE (SAFE)
+        # INTELLIGENCE ENGINE
         # ==============================
         if analytics:
             safe_run(
@@ -111,24 +161,29 @@ def main(mode="normal"):
         # ==============================
         # FINAL SUMMARY
         # ==============================
-        logger.warning("\n" + "=" * 45)
-        logger.warning("✅ ENGINE COMPLETED")
+        logger.warning("\n" + "=" * 50)
+        logger.warning("✅ ENGINE COMPLETED SUCCESSFULLY")
         logger.warning("📊 Output:")
         logger.warning("→ data/output/intelligence/final_report.csv")
         logger.warning("📁 Logs:")
         logger.warning("→ data/output/logs/mside.log")
-        logger.warning("=" * 45)
+        logger.warning("=" * 50)
 
-    except Exception:
-        logger.error("❌ ENGINE FAILED (FATAL)", exc_info=True)
+    except Exception as e:
+        logger.error("\n❌ ENGINE FAILED (FATAL)")
+        logger.error(str(e))
+
+        # 🔥 DEBUG MODE TRACE
+        if mode == "debug":
+            traceback.print_exc()
+
+        logger.error("=" * 50)
 
 
 # ==============================
-#  ENTRY POINT (CLI)
+# ENTRY POINT
 # ==============================
 if __name__ == "__main__":
-    import sys
-
     mode = "normal"
 
     if len(sys.argv) > 1:

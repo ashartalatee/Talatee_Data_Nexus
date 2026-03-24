@@ -1,23 +1,23 @@
 === BUSINESS INTELLIGENCE REPORT ===
-Generated: 2026-03-23 07:04:04.424790
+Generated: 2026-03-25 06:18:48.241429
 
 [MEDIUM] SCALE_PRODUCT
-Product : UNKNOWN_PRODUCT
+Product : kaos polos
 Action  : Naikkan budget ads + tambah stok + buat variasi konten
 Reason  : Top 30% revenue product
 --------------------------------------------------
-[LOW] FOCUS_SOURCE
-Source  : tiktok
-Action  : Double down channel ini (ads + organic)
-Reason  : Highest revenue channel
+[LOW] EVALUATE_PRODUCT
+Product : hoodie
+Action  : Evaluasi harga / positioning / pertimbangkan stop
+Reason  : Bottom 30% revenue product
 --------------------------------------------------
-[LOW] IMPROVE_SOURCE
-Source  : shopee
-Action  : Audit funnel, konten, dan targeting channel ini
-Reason  : Lowest revenue channel
+[LOW] INFO
+Source  : single_source
+Action  : Tambahkan channel baru untuk perbandingan
+Reason  : Only one channel available
 --------------------------------------------------
 [LOW] STABLE
-Insight : Growth 20.00%
+Insight : Trend SIDEWAYS
 Action  : Monitor performa
-Reason  : 
+Reason  : No significant change
 --------------------------------------------------

@@ -1,20 +1,5 @@
-shopee:
-  order_id: order_id
-  date: create_time
-  revenue: item_price
-  product: null
-  quantity: null
-
-tokopedia:
-  order_id: invoice
+single_source:
   date: date
-  revenue: total
-  product: null
-  quantity: null
-
-tiktok:
-  order_id: id
-  date: timestamp
-  revenue: sales_amount
-  product: null
-  quantity: null
+  product: product_name
+  quantity: orders
+  revenue: revenue

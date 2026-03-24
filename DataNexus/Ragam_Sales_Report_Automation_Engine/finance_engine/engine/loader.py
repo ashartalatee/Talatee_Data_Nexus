@@ -1,18 +1,24 @@
 import pandas as pd
 import os
 
-def load_data():
-    print("📥 Loading data...")
+def load_data(input_path="data/input"):
+    """
+    Load semua CSV di folder input, tambahkan kolom 'source' otomatis
+    Return: single DataFrame gabungan
+    """
+    all_files = [f for f in os.listdir(input_path) if f.endswith(".csv")]
+    data_frames = []
 
-    base_path = "data/input"
+    for file in all_files:
+        path = os.path.join(input_path, file)
+        # Load CSV
+        df = pd.read_csv(path)
+        # Tambahkan kolom source berdasarkan nama file
+        df["source"] = file.split(".")[0]  # shopee, tokopedia
+        data_frames.append(df)
+        print(f"✅ Loaded {file} ({df.shape[0]} rows)")
 
-    shopee_path = os.path.join(base_path, "shopee.csv")
-    tokopedia_path = os.path.join(base_path, "tokopedia.csv")
-
-    df_shopee = pd.read_csv(shopee_path)
-    df_tokopedia = pd.read_csv(tokopedia_path)
-
-    print("✅ Shopee loaded:", df_shopee.shape)
-    print("✅ Tokopedia loaded:", df_tokopedia.shape)
-
-    return df_shopee, df_tokopedia
+    # Gabungkan semua dataframe
+    combined_df = pd.concat(data_frames, ignore_index=True)
+    print(f"\n Total data combined: {combined_df.shape[0]} rows")
+    return combined_df
