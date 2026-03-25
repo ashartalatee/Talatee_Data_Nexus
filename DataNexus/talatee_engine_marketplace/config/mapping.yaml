@@ -1,0 +1,14 @@
+# mapping.yaml
+columns:
+  product: ["product_name", "item", "product"]
+  date: ["create_time", "order_date", "date"]
+  revenue: ["total_price", "amount", "revenue"]
+  quantity: ["qty", "quantity"]
+
+important_columns: ["date", "product", "revenue"]
+
+# opsional: bisa tambah rules lain
+source_defaults:
+  shopee: "shopee"
+  tokopedia: "tokopedia"
+  tiktok: "tiktok"
