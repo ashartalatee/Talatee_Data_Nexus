@@ -1,4 +1,5 @@
 import pandas as pd
+from dateutil import parser
 from src.utils.logger import get_logger
 
 logger = get_logger()
@@ -9,6 +10,16 @@ logger = get_logger()
 # ==============================
 def log_cleaning_changes(before, after, source):
     logger.info(f"{source} rows before: {len(before)}, after: {len(after)}")
+
+
+# ==============================
+# 🧠 SAFE DATE PARSER (CORE FIX DAY 3)
+# ==============================
+def safe_parse_date(x):
+    try:
+        return parser.parse(str(x), dayfirst=True)
+    except:
+        return pd.NaT
 
 
 # ==============================
@@ -45,7 +56,28 @@ def clean_dates(df, source):
 
     for col in date_columns:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+            logger.info(f"{source} → parsing column: {col}")
+
+            # STEP 1: parsing fleksibel
+            df[col] = df[col].apply(safe_parse_date)
+
+            # STEP 2: log hasil parsing
+            nat_count = df[col].isna().sum()
+            total = len(df[col])
+            valid_ratio = 1 - (nat_count / total)
+
+            logger.info(
+                f"{source} → {col} parsing result: valid={valid_ratio:.2f}, NaT={nat_count}"
+            )
+
+            # STEP 3: HARD WARNING kalau jelek
+            if valid_ratio < 0.5:
+                logger.warning(
+                    f"{source} → WARNING: low date parsing success ({valid_ratio:.2f})"
+                )
+
+            # STEP 4: format final (biar konsisten)
+            df[col] = df[col].dt.strftime("%Y-%m-%d")
 
     return df
 
@@ -76,7 +108,7 @@ def clean_numeric(df, source):
     df = df.copy()
 
     for col in df.columns:
-        if any(keyword in col.lower() for keyword in ["price", "qty", "quantity"]):
+        if any(keyword in col.lower() for keyword in ["price", "qty", "quantity", "revenue"]):
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
     return df

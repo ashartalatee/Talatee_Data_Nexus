@@ -1,23 +1,18 @@
 === BUSINESS INTELLIGENCE REPORT ===
-Generated: 2026-03-25 06:18:48.241429
+Generated: 2026-03-27 05:25:06.907289
 
 [MEDIUM] SCALE_PRODUCT
 Product : kaos polos
 Action  : Naikkan budget ads + tambah stok + buat variasi konten
 Reason  : Top 30% revenue product
 --------------------------------------------------
-[LOW] EVALUATE_PRODUCT
-Product : hoodie
-Action  : Evaluasi harga / positioning / pertimbangkan stop
-Reason  : Bottom 30% revenue product
---------------------------------------------------
 [LOW] INFO
 Source  : single_source
 Action  : Tambahkan channel baru untuk perbandingan
 Reason  : Only one channel available
 --------------------------------------------------
-[LOW] STABLE
-Insight : Trend SIDEWAYS
-Action  : Monitor performa
-Reason  : No significant change
+[HIGH] WARNING
+Insight : Revenue downtrend (-14.52%)
+Action  : Cek campaign, traffic drop, dan funnel error
+Reason  : Consistent decline over time
 --------------------------------------------------

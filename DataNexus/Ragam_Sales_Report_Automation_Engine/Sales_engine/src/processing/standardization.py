@@ -25,34 +25,59 @@ def safe_series(df, col, default=None, dtype=None):
 
 
 # ==============================
-# SMART DATE PARSER
+# CLEAN RAW DATE
+# ==============================
+def clean_date_raw(series):
+    return (
+        series.astype(str)
+        .str.strip()
+        .str.replace(r"[^\w\s:/-]", "", regex=True)
+    )
+
+
+# ==============================
+# SMART DATE PARSER (UPGRADED)
 # ==============================
 def parse_date(series):
+    series = clean_date_raw(series)
+
+    # PASS 1 (flexible)
     parsed = pd.to_datetime(series, errors="coerce", dayfirst=True)
 
-    if parsed.isna().all():
-        parsed = pd.to_datetime(series, errors="coerce", format="%Y-%m-%d")
+    # PASS 2 (ISO)
+    if parsed.notna().mean() < 0.5:
+        alt = pd.to_datetime(series, errors="coerce", format="%Y-%m-%d")
+        parsed = parsed.fillna(alt)
 
-    if parsed.isna().all():
-        parsed = pd.to_datetime(series, errors="coerce", format="%d/%m/%Y")
+    # PASS 3 (Indo format)
+    if parsed.notna().mean() < 0.5:
+        alt = pd.to_datetime(series, errors="coerce", format="%d/%m/%Y")
+        parsed = parsed.fillna(alt)
+
+    # PASS 4 (brutal mixed)
+    if parsed.notna().mean() < 0.5:
+        alt = pd.to_datetime(series.astype(str), errors="coerce", format="mixed")
+        parsed = parsed.fillna(alt)
 
     return parsed
 
 
 # ==============================
-# SEMANTIC VALIDATION
+# SEMANTIC VALIDATION (SMART)
 # ==============================
 def semantic_validation(df, map_config, source):
-    # DATE
     date_series = safe_series(df, map_config.get("date"))
     parsed_date = parse_date(date_series)
 
     valid_ratio = parsed_date.notna().mean()
+    logger.info(f"{source}: date valid ratio = {valid_ratio:.2f}")
 
-    if valid_ratio < 0.6:
+    if valid_ratio < 0.3:
         raise ValueError(
             f"{source}: CRITICAL → invalid date mapping (valid ratio={valid_ratio:.2f})"
         )
+    elif valid_ratio < 0.6:
+        logger.warning(f"{source}: LOW date quality")
 
     # REVENUE
     revenue_series = pd.to_numeric(
@@ -69,7 +94,7 @@ def semantic_validation(df, map_config, source):
     if len(product_series) > 0:
         unique_ratio = product_series.nunique() / len(product_series)
         if unique_ratio < 0.01:
-            logger.warning(f"{source}: product column low variance (suspicious)")
+            logger.warning(f"{source}: product column low variance")
 
     return True
 
@@ -103,7 +128,7 @@ def validate_mapping(map_config, df, source):
 
 
 # ==============================
-# MERGE MAPPING (FINAL LOGIC)
+# MERGE MAPPING
 # ==============================
 def merge_mapping(auto_map, manual_map, source):
     final_map = auto_map.copy()
@@ -133,19 +158,14 @@ def standardize_single_df(df, source, mapping):
 
     logger.info(f"{source} AUTO MAP: {auto_map}")
 
-    # ✅ MERGE MAPPING (FIXED)
     map_config = merge_mapping(auto_map, manual_map, source)
-
-    # HARD VALIDATION
     map_config = validate_mapping(map_config, df, source)
 
-    # SEMANTIC VALIDATION
     semantic_validation(df, map_config, source)
 
     try:
         standardized_df = pd.DataFrame()
 
-        # CORE
         standardized_df["order_id"] = safe_series(
             df, map_config.get("order_id"), "UNKNOWN_ID", str
         )
@@ -174,10 +194,10 @@ def standardize_single_df(df, source, mapping):
         )
 
         # CRITICAL CHECK
-        if standardized_df["date"].isna().all():
+        if standardized_df["date"].notna().sum() == 0:
             raise ValueError(f"{source}: CRITICAL all date invalid")
 
-        if standardized_df["revenue"].isna().all():
+        if standardized_df["revenue"].notna().sum() == 0:
             raise ValueError(f"{source}: CRITICAL revenue unusable")
 
         # CLEANING
@@ -213,7 +233,13 @@ def standardize_single_df(df, source, mapping):
 
     except Exception as e:
         logger.error(f"{source}: FAILED → {str(e)}", exc_info=True)
-        return pd.DataFrame()
+
+        # FAIL SAFE OUTPUT
+        fallback_df = pd.DataFrame()
+        fallback_df["source"] = [source]
+        fallback_df["status"] = ["FAILED_STANDARDIZATION"]
+
+        return fallback_df
 
 
 # ==============================

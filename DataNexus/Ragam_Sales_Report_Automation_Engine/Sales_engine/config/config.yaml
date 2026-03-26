@@ -1,7 +1,7 @@
 # ==============================
 # MODE CONFIG
 # ==============================
-single_file: data/raw/hari_02_shopee_reality.csv  # 🔥 aktif untuk test harian
+single_file: data/raw/hari_02.csv  # 🔥 aktif untuk test harian
 
 # ==============================
 # MULTI SOURCE (fallback mode)
