@@ -1,6 +1,3 @@
-# main.py — Hari 8 Final Version
-
-import pandas as pd
 from src.loader import load_all_data
 from src.validator import validate_data
 from src.cleaner import clean_data
@@ -9,90 +6,80 @@ from src.aggregator import daily_summary
 from src.analyzer import top_products
 from src.reporter import save_report
 
-
 def main():
-    print("=" * 50)
-    print("🚀 Talatee Engine Start (Multi-Source Mode) — Hari 8 Final")
-    print("=" * 50)
+    print("🚀 Talatee Engine Start")
 
     try:
         # =========================
-        # 📦 LOAD DATA
+        # 1. LOAD DATA
         # =========================
         df = load_all_data()
-
-        if df.empty:
-            raise ValueError("Data kosong! Cek folder data/raw")
-
-        print("\n📦 Data berhasil dimuat")
-        print(df.head())
-
-        print("\n📊 Jumlah data per source:")
-        if 'source' in df.columns:
-            print(df['source'].value_counts())
-        else:
-            print("⚠️ Kolom 'source' tidak ada, pastikan file CSV ada kolom source")
+        print("\n📥 Data Loaded:", df.shape)
 
         # =========================
-        # 🔍 VALIDATION
+        # 2. VALIDATE
         # =========================
-        print("\n🔍 Validating data...")
         df = validate_data(df)
 
         # =========================
-        # 🧹 CLEANING
+        # 3. CLEAN
         # =========================
-        print("\n🧹 Cleaning data...")
         df = clean_data(df)
+        print("\n🧹 After Cleaning:", df.shape)
 
         # =========================
-        # 🔄 TRANSFORM & STANDARDIZATION
+        # 4. TRANSFORM
         # =========================
-        print("\n🔄 Transforming & standardizing data...")
         df = transform_data(df)
+        print("\n🔄 After Transform:", df.shape)
 
-        # Tambah kolom tambahan siap analisis
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            df['day_of_week'] = df['date'].dt.day_name()
-
-        print("\n✅ Data after transform:")
+        # Preview dataset final
+        print("\n📦 Final Dataset Preview:")
         print(df.head())
 
         # =========================
-        # 📊 AGGREGATION
+        # 5. SAVE FINAL DATASET
         # =========================
-        print("\n📊 Generating daily summary...")
+        save_report(df, "data/processed/final_dataset.csv")
+
+        # =========================
+        # 6. DAILY AGGREGATION
+        # =========================
         summary = daily_summary(df)
+
+        # Urutkan berdasarkan tanggal
+        summary = summary.sort_values(by='date')
+
+        print("\n📊 Daily Summary Preview:")
         print(summary.head())
 
-        # =========================
-        # 🧠 ANALYSIS
-        # =========================
-        print("\n🧠 Analyzing top products...")
-        top = top_products(df)
-        print("\n🏆 Top 5 Products:")
-        print(top.head())
+        # Simpan hasil
+        save_report(summary, "output/daily/daily_summary.csv")
 
         # =========================
-        # 💾 SAVE OUTPUT
+        # 7. PRODUCT ANALYSIS (🔥 HARI 12)
         # =========================
-        output_path = "output/daily/daily_summary.csv"
-        save_report(summary, output_path)
-        print(f"\n💾 Report saved to: {output_path}")
+        top = top_products(df, top_n=10)
 
-        print("\n✅ Pipeline berhasil jalan (Multi Source) — Hari 8 Final")
-        print("=" * 50)
+        print("\n🛍️ Top Products Preview:")
+        print(top)
 
-    except FileNotFoundError:
-        print("\n❌ ERROR: Folder atau file tidak ditemukan")
-        print("👉 Pastikan folder data/raw berisi file CSV")
+        # Simpan hasil
+        save_report(top, "output/product/top_products.csv")
 
-    except pd.errors.EmptyDataError:
-        print("\n❌ ERROR: File CSV kosong")
+        # =========================
+        # 8. QUICK INSIGHT
+        # =========================
+        print("\n📈 Insight Harian:")
+        print(summary.describe())
+
+        print("\n📊 Insight Produk:")
+        print(top.describe())
+
+        print("\n✅ ENGINE HARI 12 SELESAI (PRODUCT ANALYTICS READY)")
 
     except Exception as e:
-        print("\n❌ Unexpected Error:", e)
+        print("❌ Error:", e)
 
 
 if __name__ == "__main__":
