@@ -6,6 +6,7 @@ import os
 from modules.ads_analysis import load_ads_data, ads_performance, bad_ads
 from modules.operational_analysis import stock_alert, stock_summary
 from modules.insight_engine import generate_insight, save_insight
+from modules.report_engine import generate_report, save_report
 
 def main():
     print("🚀 Talatee Marketplace Intelligence Engine Start\n")
@@ -114,6 +115,12 @@ def main():
         )
 
         save_insight(insights)
+
+        # =========================
+        # FINAL REPORT
+        # =========================
+        report = generate_report(insights)
+        save_report(report)
 
         # =========================
         # 6. SAVE REPORTS
