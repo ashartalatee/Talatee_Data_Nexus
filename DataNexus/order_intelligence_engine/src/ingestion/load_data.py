@@ -1,85 +1,155 @@
-# src/ingestion/load_data.py
+# =========================
+# 📥 DATA INGESTION MODULE (PRODUCTION READY)
+# =========================
 
 import pandas as pd
 import os
-from config.settings import DATA_SOURCES  # nanti kita pakai config
 
-def load_single_source(source):
+# ✅ IMPORT CONFIG
+from config.settings import DATA_SOURCES
+
+# ✅ LOGGER
+from utils.logger import setup_logger
+
+logger = setup_logger("ingestion")
+
+
+# =========================
+# 🔄 LOAD SINGLE SOURCE
+# =========================
+
+def load_single_source(source: dict) -> pd.DataFrame:
     """
     Load data dari satu source
-    Mendukung type: csv, excel, folder
+    Support:
+    - csv
+    - excel
+    - csv_folder
     """
+
     try:
-        if source["type"] == "csv":
-            df = pd.read_csv(source["path"])
+        source_type = source.get("type")
+        path = source.get("path")
+        name = source.get("name")
+        options = source.get("options", {})
 
-        elif source["type"] == "excel":
-            df = pd.read_excel(source["path"])
+        if not os.path.exists(path):
+            logger.warning(f"Path not found: {path}")
+            return pd.DataFrame()
 
-        elif source["type"] == "csv_folder":
-            # load semua csv di folder
+        # =========================
+        # CSV FILE
+        # =========================
+        if source_type == "csv":
+            df = pd.read_csv(
+                path,
+                delimiter=options.get("delimiter", ","),
+                encoding=options.get("encoding", "utf-8")
+            )
+
+        # =========================
+        # EXCEL FILE
+        # =========================
+        elif source_type == "excel":
+            df = pd.read_excel(
+                path,
+                sheet_name=options.get("sheet_name", 0)
+            )
+
+        # =========================
+        # CSV FOLDER
+        # =========================
+        elif source_type == "csv_folder":
             all_files = []
-            for file in os.listdir(source["path"]):
+
+            for file in os.listdir(path):
                 if file.endswith(".csv"):
-                    full_path = os.path.join(source["path"], file)
-                    tmp = pd.read_csv(full_path)
+                    full_path = os.path.join(path, file)
+
+                    tmp = pd.read_csv(
+                        full_path,
+                        delimiter=options.get("delimiter", ","),
+                        encoding=options.get("encoding", "utf-8")
+                    )
+
                     tmp["source_file"] = file
                     all_files.append(tmp)
-            if all_files:
-                df = pd.concat(all_files, ignore_index=True)
-            else:
-                print(f"[WARNING] No CSV found in folder: {source['path']}")
+
+            if not all_files:
+                logger.warning(f"No CSV found in folder: {path}")
                 return pd.DataFrame()
 
+            df = pd.concat(all_files, ignore_index=True)
+
         else:
-            raise ValueError(f"Unsupported type: {source['type']}")
+            raise ValueError(f"Unsupported type: {source_type}")
 
-        # Tambahkan kolom source
-        df["source"] = source["name"]
+        # =========================
+        # ADD SOURCE COLUMN
+        # =========================
+        df["source"] = name
 
-        print(f"[INFO] Loaded: {source['path']} | Shape: {df.shape}")
+        logger.info(f"Loaded: {path} | Shape: {df.shape}")
+
         return df
 
     except Exception as e:
-        print(f"[ERROR] Failed to load {source['path']}: {e}")
+        logger.exception(f"Failed to load {source.get('path')}: {e}")
         return pd.DataFrame()
 
 
-def load_all_data():
+# =========================
+# 🔗 LOAD ALL DATA
+# =========================
+
+def load_all_data(sources=DATA_SOURCES) -> pd.DataFrame:
     """
-    Load semua data sesuai config DATA_SOURCES
+    Load semua data dari config
     """
+
     all_df = []
 
-    for source in DATA_SOURCES:
+    for source in sources:
         df = load_single_source(source)
-        if not df.empty:
+
+        if df is not None and not df.empty:
             all_df.append(df)
 
     if not all_df:
-        print("[WARNING] No data loaded from any source!")
+        logger.error("No data loaded from any source")
         return pd.DataFrame()
 
     combined_df = pd.concat(all_df, ignore_index=True)
-    print(f"[INFO] Combined dataframe shape: {combined_df.shape}")
+
+    logger.info(f"Combined dataframe shape: {combined_df.shape}")
+
     return combined_df
 
 
-def handle_missing(df):
+# =========================
+# 🧹 MISSING HANDLER (BASIC)
+# =========================
+
+def handle_missing(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Handle missing values secara dasar:
-    - drop rows dengan kolom penting missing
-    - fill source jika kosong
+    Basic missing handling
     """
+
     before = len(df)
 
-    # drop mandatory columns
-    df = df.dropna(subset=["product_name", "quantity", "price"])
+    # drop rows with critical columns missing
+    required_cols = ["product_name", "quantity", "price"]
+
+    existing_cols = [col for col in required_cols if col in df.columns]
+
+    if existing_cols:
+        df = df.dropna(subset=existing_cols)
 
     after = len(df)
-    print(f"[INFO] Dropped {before - after} rows due to missing values")
 
-    # fill source jika kosong
+    logger.info(f"Dropped {before - after} rows due to missing values")
+
+    # fill source
     if "source" in df.columns:
         df["source"] = df["source"].fillna("unknown")
 

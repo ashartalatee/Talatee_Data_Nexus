@@ -1,9 +1,25 @@
-# src/analytics/metrics.py
+# =========================
+#  ANALYTICS & METRICS MODULE (PRODUCTION READY)
+# =========================
 
 import pandas as pd
 
+#  CONFIG
+from config.settings import ANALYTICS_CONFIG
+
+#  LOGGER
+from utils.logger import setup_logger
+
+logger = setup_logger("metrics")
+
+
+# =========================
+# 💰 CORE METRICS
+# =========================
 
 def total_revenue(df: pd.DataFrame) -> float:
+    if "revenue" not in df.columns:
+        return 0.0
     return df["revenue"].sum()
 
 
@@ -11,8 +27,27 @@ def total_orders(df: pd.DataFrame) -> int:
     return len(df)
 
 
-def top_products(df: pd.DataFrame, n=5) -> pd.DataFrame:
-    return (
+def avg_order_value(df: pd.DataFrame) -> float:
+    if "revenue" not in df.columns or len(df) == 0:
+        return 0.0
+    return df["revenue"].mean()
+
+
+# =========================
+# 📦 PRODUCT METRICS
+# =========================
+
+def top_products(df: pd.DataFrame, n: int = None) -> pd.DataFrame:
+    """
+    Top produk berdasarkan revenue
+    """
+
+    if "product_name" not in df.columns or "revenue" not in df.columns:
+        return pd.DataFrame()
+
+    n = n or ANALYTICS_CONFIG.get("top_n", 5)
+
+    result = (
         df.groupby("product_name")["revenue"]
         .sum()
         .sort_values(ascending=False)
@@ -20,34 +55,81 @@ def top_products(df: pd.DataFrame, n=5) -> pd.DataFrame:
         .reset_index()
     )
 
-
-def bulk_order_ratio(df: pd.DataFrame) -> float:
-    if "is_bulk_order" not in df.columns:
-        return 0
-
-    return df["is_bulk_order"].sum() / len(df)
+    return result
 
 
-def generate_report(df: pd.DataFrame):
-    print("\n📊 ===== BUSINESS REPORT =====")
+def get_top_products(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Semua ranking produk
+    """
 
-    revenue = total_revenue(df)
-    orders = total_orders(df)
-    bulk_ratio = bulk_order_ratio(df)
-    top_prod = top_products(df)
+    if "product_name" not in df.columns or "revenue" not in df.columns:
+        return pd.DataFrame()
 
-def get_top_products(df):
     return (
         df.groupby("product_name")["revenue"]
         .sum()
         .sort_values(ascending=False)
         .reset_index()
     )
-    print(f"\n💰 Total Revenue: {revenue:,.0f}")
-    print(f"🧾 Total Orders: {orders}")
-    print(f"📦 Bulk Order Ratio: {bulk_ratio:.2%}")
 
-    print("\n🔥 Top Products:")
-    print(top_prod.to_string(index=False))
 
-    print("\n📊 ===== END REPORT =====\n")
+# =========================
+# 🚚 ORDER BEHAVIOR METRICS
+# =========================
+
+def bulk_order_ratio(df: pd.DataFrame) -> float:
+    """
+    Rasio order dalam jumlah besar
+    """
+
+    if "is_bulk_order" not in df.columns or len(df) == 0:
+        return 0.0
+
+    return df["is_bulk_order"].sum() / len(df)
+
+
+# =========================
+# 🧾 GENERATE SUMMARY DICT (UNTUK EXPORT/API)
+# =========================
+
+def generate_summary(df: pd.DataFrame) -> dict:
+    """
+    Summary untuk export / API / dashboard
+    """
+
+    summary = {
+        "total_revenue": total_revenue(df),
+        "total_orders": total_orders(df),
+        "avg_order_value": avg_order_value(df),
+        "bulk_order_ratio": bulk_order_ratio(df)
+    }
+
+    return summary
+
+
+# =========================
+# 🖨️ PRINT REPORT (OPTIONAL)
+# =========================
+
+def generate_report(df: pd.DataFrame) -> None:
+    """
+    Console report (optional, bukan core logic)
+    """
+
+    summary = generate_summary(df)
+    top_prod = top_products(df)
+
+    logger.info("===== BUSINESS REPORT =====")
+
+    logger.info(f"Total Revenue: {summary['total_revenue']:,.0f}")
+    logger.info(f"Total Orders: {summary['total_orders']}")
+    logger.info(f"Avg Order Value: {summary['avg_order_value']:,.0f}")
+    logger.info(f"Bulk Order Ratio: {summary['bulk_order_ratio']:.2%}")
+
+    if not top_prod.empty:
+        logger.info("Top Products:")
+        for _, row in top_prod.iterrows():
+            logger.info(f"{row['product_name']} -> {row['revenue']:,.0f}")
+
+    logger.info("===== END REPORT =====")

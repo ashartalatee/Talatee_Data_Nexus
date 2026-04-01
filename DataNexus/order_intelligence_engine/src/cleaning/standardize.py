@@ -1,73 +1,122 @@
-# src/cleaning/standardize.py
+# =========================
+#  STANDARDIZATION MODULE (FINAL - ARCHITECT LEVEL)
+# =========================
 
-def normalize_column_names(df):
-    """
-    Normalisasi nama kolom:
-    - lowercase
-    - hapus spasi berlebih
-    - ganti spasi jadi underscore
-    """
+import pandas as pd
+
+# CONFIG
+from config.settings import STANDARD_SCHEMA, REQUIRED_COLUMNS, COLUMN_MAPPING
+
+# LOGGER
+from utils.logger import setup_logger
+
+logger = setup_logger("standardize")
+
+
+# =========================
+#  NORMALIZE COLUMN NAMES
+# =========================
+
+def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = (
         df.columns
+        .astype(str)
         .str.lower()
         .str.strip()
-        .str.replace(" ", "_")
+        .str.replace(r"\s+", "_", regex=True)
     )
     return df
 
 
-def standardize_columns(df):
+# =========================
+#  SMART COLUMN MAPPING (UPGRADE)
+# =========================
+
+def build_smart_mapping(columns):
     """
-    Mapping + MERGE kolom dari berbagai source menjadi schema standar
-    (ANTI duplicate column & ANTI data hilang)
+    Build dynamic mapping:
+    - Exact match from COLUMN_MAPPING
+    - Partial match (contains keyword)
     """
+    mapping = {}
 
-    column_groups = {
-        "product_name": ["nama_barang", "item", "produk"],
-        "quantity": ["qty", "jumlah", "qyt"],
-        "price": ["harga", "price"]
-    }
+    for col in columns:
+        mapped = None
 
-    new_df = df.copy()
+        # 1. EXACT MATCH (PRIORITY)
+        if col in COLUMN_MAPPING:
+            mapped = COLUMN_MAPPING[col]
 
-    for new_col, old_cols in column_groups.items():
-        available_cols = [col for col in old_cols if col in new_df.columns]
+        # 2. PARTIAL MATCH (FALLBACK)
+        else:
+            for key, val in COLUMN_MAPPING.items():
+                if key in col:
+                    mapped = val
+                    break
 
-        if available_cols:
-            # 🔥 Ambil nilai pertama yang tidak null dari beberapa kolom
-            new_df[new_col] = new_df[available_cols].bfill(axis=1).iloc[:, 0]
+        if mapped:
+            mapping[col] = mapped
 
-    return new_df
+    return mapping
 
 
-def validate_columns(df):
-    """
-    Validasi apakah kolom wajib tersedia
-    """
-    required_columns = ["product_name", "quantity", "price"]
+# =========================
+#  STANDARDIZE COLUMNS
+# =========================
 
-    missing = [col for col in required_columns if col not in df.columns]
+def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    logger.info(f"Columns BEFORE mapping -> {list(df.columns)}")
 
-    if missing:
-        print(f"[WARNING] Missing columns: {missing}")
-    else:
-        print("[INFO] All required columns are present")
+    smart_map = build_smart_mapping(df.columns)
+
+    df = df.rename(columns=smart_map)
+
+    logger.info(f"Applied mapping -> {smart_map}")
+    logger.info(f"Columns AFTER mapping -> {list(df.columns)}")
 
     return df
 
 
-def enforce_schema(df):
-    """
-    Ambil hanya kolom penting + pastikan tidak ada duplicate column
-    """
-    expected_columns = ["product_name", "quantity", "price", "source"]
+# =========================
+#  VALIDATE REQUIRED COLUMNS
+# =========================
 
-    # ambil kolom yang ada saja
-    existing = [col for col in expected_columns if col in df.columns]
+def validate_columns(df: pd.DataFrame) -> pd.DataFrame:
+    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+
+    if missing:
+        logger.warning(f"Missing required columns: {missing}")
+    else:
+        logger.info("All required columns are present")
+
+    return df
+
+
+# =========================
+#  ENFORCE FINAL SCHEMA
+# =========================
+
+def enforce_schema(df: pd.DataFrame) -> pd.DataFrame:
+    existing = [col for col in STANDARD_SCHEMA if col in df.columns]
 
     df = df[existing]
 
-    # 🔥 safety: hilangkan duplicate column kalau masih ada
+    # Remove duplicate columns
     df = df.loc[:, ~df.columns.duplicated()]
+
+    logger.info(f"Final schema enforced -> {existing}")
+
+    return df
+
+
+# =========================
+#  FULL STANDARDIZATION PIPELINE
+# =========================
+
+def standardization_pipeline(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalize_column_names(df)
+    df = standardize_columns(df)
+    df = validate_columns(df)
+    df = enforce_schema(df)
 
     return df

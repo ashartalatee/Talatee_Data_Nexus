@@ -1,123 +1,141 @@
-# src/main.py
+# =========================
+#  ORDER INTELLIGENCE ENGINE (FINAL PRO)
+# =========================
 
-from ingestion.load_data import load_all_data
-from cleaning.text_cleaner import clean_text, normalize_product_name
-from cleaning.standardize import (
-    normalize_column_names,
-    standardize_columns,
-    validate_columns,
-    enforce_schema
+from .ingestion.load_data import load_all_data
+
+from .cleaning.standardize import standardization_pipeline
+from .cleaning.missing_handler import missing_pipeline
+from .cleaning.duplicate_handler import duplicate_pipeline
+from .cleaning.text_cleaner import text_cleaning_pipeline
+
+from .transform.feature_engineering import transform_pipeline
+
+from .analysis.metrics import (
+    generate_report,
+    get_top_products,
+    generate_summary
 )
-from cleaning.missing_handler import check_missing, handle_missing
-from cleaning.duplicate_handler import check_duplicates, remove_duplicates_subset
 
-from transform.feature_engineering import transform_pipeline
-from analysis.metrics import generate_report, get_top_products
+from .output.exporter import export_to_csv
+from .utils.logger import setup_logger
 
-from output.exporter import export_to_csv, export_to_excel
-from utils.logger import setup_logger
+from .config.settings import (
+    APP_NAME,
+    VERSION,
+    DATA_SOURCES
+)
+
+from datetime import datetime
+from pathlib import Path
+import pandas as pd
 
 
-def main():
-    logger = setup_logger()
+# =========================
+#  MAIN ENGINE FUNCTION
+# =========================
+
+def run_engine():
+    logger = setup_logger("main")
 
     try:
-        logger.info("Starting Order Intelligence Engine v1")
+        logger.info(f"Starting {APP_NAME} v{VERSION}")
 
         # =========================
         # STEP 1: LOAD DATA
         # =========================
-        df = load_all_data()
+        df = load_all_data(DATA_SOURCES)
 
-        if df.empty:
+        if df is None or df.empty:
             logger.error("No data loaded. Stopping pipeline.")
             return
 
-        logger.info(f"Data loaded | Rows: {len(df)}")
+        logger.info(f"Data loaded | Total Rows: {len(df)}")
+
+        # LOG PER SOURCE
+        if "source" in df.columns:
+            for src in df["source"].unique():
+                count = len(df[df["source"] == src])
+                logger.info(f"{src} -> {count} rows")
 
         # =========================
-        # STEP 2: STANDARDIZATION
+        # STEP 2–6: PIPELINE
         # =========================
-        df = normalize_column_names(df)
-        df = standardize_columns(df)
-        df = validate_columns(df)
-        df = enforce_schema(df)
-
-        logger.info(f"Columns after standardization: {df.columns.tolist()}")
-
-        # =========================
-        # STEP 3: MISSING HANDLING
-        # =========================
-        check_missing(df)
-        df = handle_missing(df)
-
-        logger.info("Missing values handled")
-
-        # =========================
-        # STEP 4: DUPLICATE HANDLING
-        # =========================
-        check_duplicates(df)
-        df = remove_duplicates_subset(df)
-
-        logger.info(f"Rows after deduplication: {len(df)}")
-
-        # =========================
-        # STEP 5: TEXT CLEANING
-        # =========================
-        df = clean_text(df)
-        df = normalize_product_name(df)
-
-        logger.info("Text cleaning completed")
-
-        # =========================
-        # STEP 6: TRANSFORMATION
-        # =========================
+        df = standardization_pipeline(df)
+        df = missing_pipeline(df)
+        df = duplicate_pipeline(df)
+        df = text_cleaning_pipeline(df)
         df = transform_pipeline(df)
 
-        # 🔍 VALIDATION KRITIS
-        if "revenue" not in df.columns:
-            logger.error("Revenue column missing after transform")
+        if "revenue" not in df.columns or df["revenue"].isna().all():
+            logger.error("Revenue invalid")
             return
 
-        if df["revenue"].isna().all():
-            logger.error("All revenue values are NaN. Check transformation logic.")
-            return
-
-        logger.info("Transformation completed successfully")
+        logger.info("Data pipeline completed")
 
         # =========================
         # STEP 7: ANALYTICS
         # =========================
-        print("\n[STEP] Generating business report...")
+        summary = generate_summary(df)
         generate_report(df)
-
         top_products_df = get_top_products(df)
 
-        logger.info("Analytics generated")
+        logger.info(f"Revenue: {summary['total_revenue']:,.0f}")
+        logger.info(f"Orders: {summary['total_orders']}")
 
         # =========================
         # STEP 8: EXPORT
         # =========================
-        print("\n[STEP] Exporting results...")
-        export_to_csv(df)
-        export_to_excel(df, top_products_df)
+        logger.info("Exporting outputs...")
 
-        logger.info("Export completed successfully")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = Path("output")
+        output_dir.mkdir(exist_ok=True)
 
-        # =========================
-        # STEP 9: DEBUG SNAPSHOT
-        # =========================
-        print("\n[DEBUG] Sample Data:")
-        print(df.head())
+        # 1. EXPORT PER SOURCE
+        if "source" in df.columns:
+            for src in df["source"].unique():
+                df_src = df[df["source"] == src]
+                path = output_dir / f"final_{src}_{ts}.csv"
+                export_to_csv(df_src, path)
+                logger.info(f"{src} -> {path}")
 
-        print("\n[DEBUG] Data Types:")
-        print(df.dtypes)
+        # 2. EXPORT GABUNGAN
+        combined_path = output_dir / f"final_semua_{ts}.csv"
+        export_to_csv(df, combined_path)
+        logger.info(f"combined -> {combined_path}")
 
-        logger.info("Pipeline finished successfully")
+        # 3. EXCEL MULTI SHEET
+        excel_path = output_dir / f"report_{ts}.xlsx"
+
+        with pd.ExcelWriter(excel_path) as writer:
+            df.to_excel(writer, sheet_name="ALL_DATA", index=False)
+
+            if "source" in df.columns:
+                for src in df["source"].unique():
+                    df[df["source"] == src].to_excel(
+                        writer,
+                        sheet_name=src[:31],
+                        index=False
+                    )
+
+            top_products_df.to_excel(
+                writer,
+                sheet_name="TOP_PRODUCTS",
+                index=False
+            )
+
+        logger.info(f"excel_report -> {excel_path}")
+
+        logger.info("PIPELINE SUCCESS")
 
     except Exception as e:
         logger.exception(f"Pipeline failed: {e}")
 
 
+# =========================
+#  ENTRY POINT
+# =========================
+
 if __name__ == "__main__":
-    main()
+    run_engine()
