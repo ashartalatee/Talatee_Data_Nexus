@@ -5,17 +5,18 @@ import traceback
 from datetime import datetime
 
 
-def run_all_clients():
+def run_all_clients(target_client=None):
     """
     Main orchestrator:
     - Load semua config
+    - Optional: filter client tertentu
     - Filter berdasarkan schedule
     - Jalankan engine per client
     - Handle error per client (tidak menghentikan sistem)
     - Summary hasil run
     """
 
-    print("\n[START] Running all clients...\n")
+    print("\n[START] Running engine...\n")
 
     configs = load_all_configs()
 
@@ -23,14 +24,27 @@ def run_all_clients():
     executed = 0
     skipped = 0
     failed = 0
+    found = False  # untuk validasi target client
 
     start_time = datetime.now()
 
     for config in configs:
-        client_name = config.get("name", "unknown_client")
-        schedule = config.get("schedule", "unknown")
+        # ========================
+        # FIX: gunakan client_name (bukan name)
+        # ========================
+        client_name = config.get("client_name", "unknown_client")
+        schedule = config.get("schedule", {})
 
-        print(f"\n[INFO] Processing client: {client_name} ({schedule})")
+        # ========================
+        # FILTER CLIENT (INI KUNCI)
+        # ========================
+        if target_client and client_name != target_client:
+            print(f"[SKIP] {client_name} (not target)")
+            continue
+
+        found = True
+
+        print(f"\n[INFO] Processing client: {client_name}")
 
         try:
             # ========================
@@ -58,18 +72,23 @@ def run_all_clients():
             # detail error (penting buat debugging)
             traceback.print_exc()
 
-            # lanjut ke client berikutnya (anti crash system)
             continue
+
+    # ========================
+    # VALIDASI TARGET CLIENT
+    # ========================
+    if target_client and not found:
+        print(f"\n[ERROR] Client '{target_client}' tidak ditemukan!\n")
 
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
 
     # ========================
-    # FINAL SUMMARY (INI VALUE)
+    # FINAL SUMMARY
     # ========================
     print("\n" + "=" * 40)
     print("[FINAL SUMMARY]")
-    print(f"Total clients : {total}")
+    print(f"Total configs : {total}")
     print(f"Executed      : {executed}")
     print(f"Skipped       : {skipped}")
     print(f"Failed        : {failed}")

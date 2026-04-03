@@ -5,6 +5,8 @@ import pandas as pd
 # =========================
 # IMPORT PIPELINES
 # =========================
+from src.transform.column_mapper import apply_column_mapping
+from src.transform.date_normalizer import normalize_date_column
 from src.ingestion.load_data import load_all_data
 from src.cleaning.standardize import standardization_pipeline
 from src.cleaning.missing_handler import missing_pipeline
@@ -26,34 +28,49 @@ from src.utils.logger import setup_logger
 
 
 # =========================================
-# VALIDATION
+# AUTO COLUMN DETECTOR
 # =========================================
-def validate_config(config):
-    required_keys = ["client_name", "data_sources", "schedule"]
+def auto_fix_columns(df, logger):
+    df = df.copy()
+    df.columns = df.columns.str.strip().str.lower()
 
-    for key in required_keys:
-        if key not in config:
-            raise ValueError(f"Config missing required key: {key}")
+    candidates = {
+        "date": ["date", "order_date", "tanggal", "created_at"],
+        "product_name": ["product_name", "item_name", "nama_produk"],
+        "quantity": ["qty", "quantity", "jumlah"],
+        "price": ["price", "unit_price", "harga"],
+    }
 
-    if "type" not in config["schedule"]:
-        raise ValueError("schedule.type wajib ada")
+    for target, options in candidates.items():
+        if target not in df.columns:
+            for opt in options:
+                if opt in df.columns:
+                    df.rename(columns={opt: target}, inplace=True)
+                    logger.info(f"[AUTO-MAP] {opt} → {target}")
+                    break
 
-
-# =========================================
-# SAFE DATAFRAME HANDLER
-# =========================================
-def safe_df(df):
-    if df is None:
-        return pd.DataFrame()
-    if isinstance(df, pd.DataFrame) and df.empty:
-        return pd.DataFrame()
     return df
 
 
 # =========================================
-# DATE FILTER
+# VALIDATION
 # =========================================
-def apply_date_filter(df, schedule_type):
+def validate_dataframe(df, logger):
+    required_cols = ["date"]
+
+    missing = [col for col in required_cols if col not in df.columns]
+
+    if missing:
+        logger.error(f"[SCHEMA ERROR] Missing columns: {missing}")
+        return False
+
+    return True
+
+
+# =========================================
+# DATE FILTER (SMART)
+# =========================================
+def apply_date_filter(df, schedule_type, logger):
     if "date" not in df.columns:
         return df
 
@@ -61,20 +78,27 @@ def apply_date_filter(df, schedule_type):
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     now = datetime.now()
 
+    logger.info(f"[DEBUG] Date min: {df['date'].min()} | max: {df['date'].max()}")
+
     if schedule_type == "daily":
-        return df[df["date"].dt.date == now.date()]
-
+        filtered = df[df["date"].dt.date == now.date()]
     elif schedule_type == "weekly":
-        return df[df["date"] >= now - timedelta(days=7)]
-
+        filtered = df[df["date"] >= now - timedelta(days=7)]
     elif schedule_type == "monthly":
-        return df[df["date"] >= now - timedelta(days=30)]
+        filtered = df[df["date"] >= now - timedelta(days=30)]
+    else:
+        return df
 
-    return df
+    # 🔥 FALLBACK BIAR GA KOSONG
+    if filtered.empty:
+        logger.warning("[FILTER] Empty → fallback to ALL data")
+        return df
+
+    return filtered
 
 
 # =========================================
-# CLEANING PIPELINE WRAPPER
+# CLEANING PIPELINE (DEFENSIVE)
 # =========================================
 def run_cleaning(df, logger):
     steps = [
@@ -89,67 +113,98 @@ def run_cleaning(df, logger):
             before = len(df)
             df = func(df)
             logger.info(f"[CLEAN-{name.upper()}] {before} -> {len(df)}")
-        except Exception as e:
-            logger.exception(f"[ERROR] Cleaning step '{name}' failed: {e}")
+        except Exception:
+            logger.exception(f"[ERROR] Cleaning step '{name}' failed")
 
     return df
 
 
 # =========================================
-# OUTPUT HANDLER
+# SAFE DF
+# =========================================
+def safe_df(df):
+    return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+
+
+# =========================================
+# OUTPUT
 # =========================================
 def save_outputs(df, summary, top_products, low_products, client, schedule_type, logger):
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = Path("output") / client / schedule_type
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = output_dir / f"{client}_{ts}.csv"
-    excel_path = output_dir / f"{client}_{ts}.xlsx"
+    try:
+        export_to_csv(df, output_dir / f"{client}_{ts}.csv")
+    except:
+        logger.exception("[ERROR] CSV export failed")
 
-    export_to_csv(df, csv_path)
+    try:
+        with pd.ExcelWriter(output_dir / f"{client}_{ts}.xlsx", engine="xlsxwriter") as writer:
+            df.to_excel(writer, "ALL_DATA", index=False)
+            pd.DataFrame([summary]).to_excel(writer, "SUMMARY", index=False)
 
-    with pd.ExcelWriter(excel_path, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="ALL_DATA", index=False)
-        pd.DataFrame([summary]).to_excel(writer, sheet_name="SUMMARY", index=False)
+            if not top_products.empty:
+                top_products.to_excel(writer, "TOP_PRODUCTS", index=False)
 
-        if not top_products.empty:
-            top_products.to_excel(writer, sheet_name="TOP_PRODUCTS", index=False)
+            if not low_products.empty:
+                low_products.to_excel(writer, "LOW_PRODUCTS", index=False)
+    except:
+        logger.exception("[ERROR] Excel export failed")
 
-        if not low_products.empty:
-            low_products.to_excel(writer, sheet_name="LOW_PRODUCTS", index=False)
-
-    logger.info("[FINAL REPORT]")
-    logger.info(f"CSV   : {csv_path.name}")
-    logger.info(f"Excel : {excel_path.name}")
-    logger.info(f"Path  : {output_dir}")
+    logger.info(f"[OUTPUT] {output_dir}")
 
 
 # =========================================
 # MAIN ENGINE
 # =========================================
 def run_engine(config):
-    validate_config(config)
-
-    client = config["client_name"]
-    schedule_type = config["schedule"]["type"]
-
+    client = config.get("client_name", "UNKNOWN")
     logger = setup_logger(client)
 
     try:
+        schedule_type = config.get("schedule", {}).get("type", "daily")
         logger.info(f"[START] {client} ({schedule_type})")
-        logger.info(f"[CONFIG] {config}")
 
         # ========================
-        # LOAD DATA
+        # LOAD
         # ========================
-        df = load_all_data(config["data_sources"])
+        df = load_all_data(config.get("data_sources", []))
 
         if df is None or df.empty:
             logger.error("[ERROR] No data loaded")
             return
 
-        rows_initial = len(df)
-        logger.info(f"[LOAD] Rows: {rows_initial}")
+        logger.info(f"[LOAD] Rows: {len(df)}")
+        logger.info(f"[RAW COLUMNS] {list(df.columns)}")
+
+        # ========================
+        # AUTO FIX
+        # ========================
+        df = auto_fix_columns(df, logger)
+
+        # ========================
+        # MAPPING
+        # ========================
+        mapping = config.get("column_mapping", {})
+        df = apply_column_mapping(df, mapping, logger)
+
+        # 🔥 FIX DUPLICATE COLUMN
+        df = df.loc[:, ~df.columns.duplicated()]
+
+        logger.info(f"[FINAL COLUMNS] {list(df.columns)}")
+
+        # ========================
+        # DATE NORMALIZE
+        # ========================
+        if "date" in df.columns:
+            df = normalize_date_column(df, "date", logger)
+
+        # ========================
+        # VALIDATE
+        # ========================
+        if not validate_dataframe(df, logger):
+            return
 
         # ========================
         # CLEANING
@@ -159,21 +214,16 @@ def run_engine(config):
         # ========================
         # TRANSFORM
         # ========================
-        try:
-            df = transform_pipeline(df)
-            logger.info(f"[TRANSFORM] Rows: {len(df)}")
-        except Exception as e:
-            logger.exception(f"[ERROR] Transform failed: {e}")
-            return
+        df = transform_pipeline(df)
 
         # ========================
         # FILTER
         # ========================
-        before_filter = len(df)
-        df = apply_date_filter(df, schedule_type)
-        after_filter = len(df)
+        before = len(df)
+        df = apply_date_filter(df, schedule_type, logger)
+        after = len(df)
 
-        logger.info(f"[FILTER] {before_filter} -> {after_filter}")
+        logger.info(f"[FILTER] {before} -> {after}")
 
         if df.empty:
             logger.warning("[WARNING] No data after filtering")
@@ -182,14 +232,9 @@ def run_engine(config):
         # ========================
         # ANALYTICS
         # ========================
-        try:
-            metrics = calculate_metrics(df)
-            summary = build_summary(metrics)
-        except Exception as e:
-            logger.exception(f"[ERROR] Metrics/Summary failed: {e}")
-            return
+        metrics = calculate_metrics(df)
+        summary = build_summary(metrics)
 
-        #  FIX AMBIGUOUS ERROR (INI INTI MASALAH LO)
         top_products = safe_df(get_top_products(df))
         low_products = safe_df(get_low_performing_products(df))
 
@@ -200,47 +245,22 @@ def run_engine(config):
         )
 
         # ========================
-        # LOGGING BUSINESS
+        # LOG
         # ========================
-        logger.info("[BUSINESS SUMMARY]")
+        logger.info("[SUMMARY]")
         for k, v in summary.items():
             logger.info(f"{k}: {v}")
 
         logger.info("[INSIGHT]")
-        for ins in insights.get("insights", []):
-            logger.info(f"- {ins}")
-
-        if not top_products.empty:
-            logger.info(f"[TOP PRODUCT] {top_products.iloc[0].to_dict()}")
-
-        # ========================
-        # DATA QUALITY CHECK
-        # ========================
-        filtered_ratio = (after_filter / rows_initial) if rows_initial > 0 else 0
-
-        if filtered_ratio < 0.2:
-            logger.error(
-                f"[CRITICAL] Data terlalu sedikit: {round(filtered_ratio * 100, 1)}%"
-            )
-        elif filtered_ratio < 0.5:
-            logger.warning(
-                f"[DATA QUALITY WARNING] Only {round(filtered_ratio * 100, 1)}% data used"
-            )
+        for i in insights.get("insights", []):
+            logger.info(f"- {i}")
 
         # ========================
         # OUTPUT
         # ========================
-        save_outputs(
-            df,
-            summary,
-            top_products,
-            low_products,
-            client,
-            schedule_type,
-            logger
-        )
+        save_outputs(df, summary, top_products, low_products, client, schedule_type, logger)
 
         logger.info(f"[DONE] {client}")
 
     except Exception as e:
-        logger.exception(f"[FATAL ERROR] {client}: {e}")
+        logger.exception(f"[FATAL] {client}: {e}")
