@@ -1,182 +1,147 @@
-from pathlib import Path
-import argparse
-import logging
-import sys
-from typing import List, Dict, Any
+#!/usr/bin/env python3
+"""
+Main entry point for the E-commerce Analytics Engine.
+Orchestrates the full pipeline for multi-client, multi-marketplace analytics.
+"""
 
-import pandas as pd
+import sys
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+import json
 
 from utils.logger import setup_logger
-from utils.config_loader import load_all_configs
-from utils.scheduler import should_run
-from utils.safe_df import ensure_df
-
+from utils.config_loader import load_client_config
+from utils.scheduler import should_run_pipeline
 from ingestion.load_data import load_all_sources
-
-from cleaning.standardize import standardize_df
-from cleaning.missing_handler import handle_missing_values
-from cleaning.duplicate_handler import remove_duplicates
-from cleaning.text_cleaner import clean_text_columns
-
-from transform.column_mapper import map_columns
-from transform.date_normalizer import normalize_dates
-from transform.feature_engineering import build_features
-
-from analysis.metrics import compute_metrics
+from cleaning.standardize import clean_and_standardize
+from transform.feature_engineering import transform_features
+from analysis.metrics import generate_metrics
 from analysis.summary import build_summary
 from analysis.insight import generate_insights
-
-from output.exporter import export_results
-
-from alerts.notifier import send_alert
+from output.exporter import export_reports
+from utils.constants import PIPELINE_STAGES
 
 
-logger = setup_logger(__name__)
-
-
-def process_client(config: Dict[str, Any], debug: bool = False) -> None:
+def main(client_id: str = None) -> None:
     """
-    Process a single client pipeline end-to-end.
+    Main pipeline orchestrator.
+    
+    Args:
+        client_id: Specific client ID to process. If None, processes all clients.
     """
-
-    client_name = config.get("client_name", "unknown_client")
-    logger.info(f"[START] Processing client: {client_name}")
-
+    # Setup root logger
+    logger = setup_logger("main")
+    logger.info(f"🚀 E-commerce Analytics Engine started at {datetime.now()}")
+    
     try:
-        if not should_run(config):
-            logger.info(f"[SKIP] Schedule not matched for {client_name}")
-            return
-
-        # ========================
-        # INGESTION
-        # ========================
-        df = load_all_sources(config)
-        df = ensure_df(df)
-
-        if df.empty:
-            logger.warning(f"[EMPTY] No data for {client_name}")
-            return
-
-        # ========================
-        # CLEANING
-        # ========================
-        df = standardize_df(df, config)
-        df = ensure_df(df)
-
-        df = handle_missing_values(df, config)
-        df = ensure_df(df)
-
-        df = remove_duplicates(df, config)
-        df = ensure_df(df)
-
-        df = clean_text_columns(df, config)
-        df = ensure_df(df)
-
-        # ========================
-        # TRANSFORM
-        # ========================
-        df = map_columns(df, config)
-        df = ensure_df(df)
-
-        df = normalize_dates(df, config)
-        df = ensure_df(df)
-
-        df = build_features(df, config)
-        df = ensure_df(df)
-
-        # ========================
-        # ANALYSIS
-        # ========================
-        metrics_df = compute_metrics(df, config)
-        metrics_df = ensure_df(metrics_df)
-
-        summary_df = build_summary(metrics_df, config)
-        summary_df = ensure_df(summary_df)
-
-        insights_df = generate_insights(metrics_df, config)
-        insights_df = ensure_df(insights_df)
-
-        # ========================
-        # EXPORT
-        # ========================
-        export_results(
-            client_name=client_name,
-            raw_df=df,
-            metrics_df=metrics_df,
-            summary_df=summary_df,
-            insights_df=insights_df,
-            config=config,
-        )
-
-        logger.info(f"[SUCCESS] Completed client: {client_name}")
-
-    except Exception as e:
-        logger.exception(f"[ERROR] Client failed: {client_name}")
-        try:
-            send_alert(client_name=client_name, message=str(e))
-        except Exception:
-            logger.error("[ALERT FAILED]")
-
-
-def run_engine(target_client: str = None, debug: bool = False) -> None:
-    """
-    Main engine runner for all or specific clients.
-    """
-
-    logger.info("[ENGINE START] Talatee Data Nexus")
-
-    try:
-        configs = load_all_configs()
+        # 1. Load configuration
+        logger.info("📋 Loading client configurations...")
+        configs = load_client_config(client_id)
         if not configs:
-            logger.error("[FATAL] No valid configs found")
-            return
-
-        logger.info(f"[INFO] Total configs loaded: {len(configs)}")
-
-        for config in configs:
-            client_name = config.get("client_name")
-
-            if target_client and client_name != target_client:
-                logger.info(f"[SKIP] {client_name} (not target)")
+            logger.error("❌ No valid client configurations found")
+            sys.exit(1)
+        
+        processed_clients = []
+        
+        # 2. Process each client
+        for client_id, config in configs.items():
+            logger.info(f"{'='*60}")
+            logger.info(f"👤 Processing client: {client_id}")
+            
+            try:
+                # Check schedule
+                if not should_run_pipeline(config.get('schedule', {})):
+                    logger.info(f"⏭️ Skipping {client_id}: Not scheduled to run")
+                    continue
+                
+                # 3. Data Ingestion
+                logger.info("📥 Starting data ingestion...")
+                raw_data = load_all_sources(config)
+                if raw_data is None or raw_data.empty:
+                    logger.warning(f"⚠️ No data loaded for {client_id}")
+                    continue
+                
+                logger.info(f"✅ Loaded {len(raw_data)} records from {len(raw_data.columns)} columns")
+                
+                # 4. Data Cleaning Pipeline
+                logger.info("🧹 Starting data cleaning pipeline...")
+                cleaned_data = clean_and_standardize(raw_data, config)
+                if cleaned_data is None or cleaned_data.empty:
+                    logger.error(f"❌ Cleaning failed for {client_id}")
+                    continue
+                
+                logger.info(f"✅ Cleaning complete: {len(cleaned_data)} records")
+                
+                # 5. Data Transformation & Feature Engineering
+                logger.info("🔄 Starting transformation & feature engineering...")
+                transformed_data = transform_features(cleaned_data, config)
+                if transformed_data is None:
+                    logger.error(f"❌ Transformation failed for {client_id}")
+                    continue
+                
+                logger.info("✅ Transformation complete")
+                
+                # 6. Analytics & Insights
+                logger.info("📊 Generating analytics & insights...")
+                metrics_df = generate_metrics(transformed_data, config)
+                summary_df = build_summary(transformed_data, metrics_df, config)
+                insights = generate_insights(transformed_data, metrics_df, summary_df, config)
+                
+                if metrics_df is None or summary_df is None:
+                    logger.error(f"❌ Analytics failed for {client_id}")
+                    continue
+                
+                logger.info("✅ Analytics complete")
+                
+                # 7. Export Reports
+                logger.info("📤 Generating reports...")
+                export_path = export_reports(
+                    client_id=client_id,
+                    config=config,
+                    raw_data=raw_data,
+                    cleaned_data=cleaned_data,
+                    transformed_data=transformed_data,
+                    metrics_df=metrics_df,
+                    summary_df=summary_df,
+                    insights=insights
+                )
+                
+                logger.info(f"✅ Reports exported to: {export_path}")
+                processed_clients.append(client_id)
+                
+            except Exception as e:
+                logger.error(f"💥 Pipeline failed for {client_id}: {str(e)}", exc_info=True)
                 continue
-
-            process_client(config, debug=debug)
-
+        
+        # 8. Final Summary
+        logger.info(f"{'='*60}")
+        logger.info(f"🎉 Pipeline completed successfully!")
+        logger.info(f"✅ Processed clients: {len(processed_clients)}")
+        logger.info(f"📋 Clients: {', '.join(processed_clients)}")
+        
+    except KeyboardInterrupt:
+        logger.warning("⚠️ Pipeline interrupted by user")
+        sys.exit(130)
     except Exception as e:
-        logger.exception("[FATAL ERROR] Engine crashed")
-        try:
-            send_alert(client_name="ENGINE", message=str(e))
-        except Exception:
-            logger.error("[ALERT FAILED]")
+        logger.error(f"💥 Critical pipeline failure: {str(e)}", exc_info=True)
+        sys.exit(1)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Talatee Multi-Client Analytics Engine")
+def run_single_client(client_id: str) -> None:
+    """Run pipeline for a single specific client."""
+    main(client_id)
 
-    parser.add_argument(
-        "--client",
-        type=str,
-        help="Run specific client only",
-        required=False,
-    )
 
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug mode",
-    )
-
-    return parser.parse_args()
+def run_all_clients() -> None:
+    """Run pipeline for all configured clients."""
+    main()
 
 
 if __name__ == "__main__":
-    args = parse_args()
-
-    try:
-        run_engine(
-            target_client=args.client,
-            debug=args.debug,
-        )
-    except KeyboardInterrupt:
-        logger.warning("[STOPPED] Interrupted by user")
-        sys.exit(0)
+    if len(sys.argv) > 1:
+        client_id = sys.argv[1]
+        run_single_client(client_id)
+    else:
+        run_all_clients()
