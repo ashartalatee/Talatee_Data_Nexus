@@ -9,7 +9,7 @@ from cleaning.standardize import DataCleaner
 from transform.feature_engineering import DataTransformer
 from analysis.metrics import AnalyticsEngine
 from output.exporter import DataExporter
-from utils.logger import setup_custom_logger
+from utils.logger import setup_logger
 
 class PipelineRunner:
     """
@@ -24,7 +24,7 @@ class PipelineRunner:
         
         # Setup client-specific logging
         log_file = base_dir / "logs" / f"{client_id}_pipeline.log"
-        self.logger = setup_custom_logger(f"runner_{client_id}", log_file)
+        self.logger = setup_logger(f"runner_{client_id}", log_file)
         
         # Initialize Step Modules
         self.ingestor = DataIngestor(self.config, self.base_dir, self.logger)

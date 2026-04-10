@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 import pandas as pd
 
-from utils.logger import setup_custom_logger
+from utils.logger import setup_logger
 from utils.config_loader import load_global_config, load_client_config
 from runner import PipelineRunner
 
@@ -22,7 +22,7 @@ def main() -> None:
     LOG_DIR.mkdir(exist_ok=True)
 
     # Setup core logger
-    logger = setup_custom_logger("sentinel_core", LOG_DIR / "engine_execution.log")
+    logger = setup_logger("sentinel_core", LOG_DIR / "engine_execution.log")
     logger.info("Initializing Talatee Sentinel Engine Orchestrator")
 
     try:

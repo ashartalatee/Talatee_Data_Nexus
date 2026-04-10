@@ -25,7 +25,6 @@ class FeatureEngineer:
             self.logger.info("Starting feature engineering phase.")
 
             # 1. Net Revenue / GMV Logic
-            # Standard: total_price is usually Gross. We define Net if tax or shipping adjustments exist.
             if "total_price" in df.columns:
                 df["is_high_value"] = df["total_price"] > df["total_price"].median()
 
@@ -42,6 +41,8 @@ class FeatureEngineer:
 
             # 4. Temporal Features
             if "transaction_date" in df.columns:
+                # Pastikan kolom sudah datetime sebelum operasi .dt
+                df["transaction_date"] = pd.to_datetime(df["transaction_date"])
                 df["day_name"] = df["transaction_date"].dt.day_name()
                 df["hour_of_day"] = df["transaction_date"].dt.hour
                 df["is_weekend"] = df["transaction_date"].dt.dayofweek >= 5
@@ -72,9 +73,12 @@ class FeatureEngineer:
         if not city:
             return "Unknown"
         city_lower = str(city).lower()
-        # Example logic for Indonesian marketplaces
         if any(x in city_lower for x in ["jakarta", "bogor", "depok", "tangerang", "bekasi"]):
             return "Jabodetabek"
         if any(x in city_lower for x in ["surabaya", "malang", "sidoarjo"]):
             return "East Java"
         return "Other Regions"
+
+# --- Penyelamat Import Error ---
+# Alias agar runner.py bisa memanggil 'from ... import DataTransformer'
+DataTransformer = FeatureEngineer

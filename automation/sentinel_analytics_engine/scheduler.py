@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List
 
-from utils.logger import setup_custom_logger
+from utils.logger import setup_logger
 from utils.config_loader import load_global_config
 
 class SentinelScheduler:
@@ -19,7 +19,7 @@ class SentinelScheduler:
         self.log_dir = self.base_dir / "logs"
         self.log_dir.mkdir(exist_ok=True)
         
-        self.logger = setup_custom_logger("sentinel_scheduler", self.log_dir / "scheduler.log")
+        self.logger = setup_logger("sentinel_scheduler", self.log_dir / "scheduler.log")
         self.global_config = self.load_settings()
         
     def load_settings(self) -> Dict[str, Any]:

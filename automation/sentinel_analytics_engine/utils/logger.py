@@ -4,52 +4,51 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-def setup_logger(client_id: str, log_dir: Path, level: int = logging.INFO) -> logging.Logger:
+def setup_logger(name: str, log_file: Path, level: int = logging.INFO) -> logging.Logger:
     """
-    Configures a production-grade logger with both console and rotating file handlers.
-    Each client execution is isolated via unique logger names and file paths.
+    Standardized logger for Talatee Sentinel.
+    Disesuaikan agar menerima Path file lengkap (log_file) sesuai logika main.py.
     """
-    # Ensure log directory exists
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"{client_id}_pipeline.log"
-
-    # Create logger
-    logger = logging.getLogger(f"TalateeSentinel.{client_id}")
+    # Inisialisasi Logger
+    logger = logging.getLogger(name)
     logger.setLevel(level)
 
-    # Prevent duplicate handlers if logger is re-initialized in the same process
+    # Mencegah duplikasi handler jika logger dipanggil ulang
     if logger.hasHandlers():
         return logger
 
-    # Formatting: [Timestamp] [Level] [Module] - Message
+    # Format: 2026-04-10 13:00:00 | INFO | logger_name | message
     formatter = logging.Formatter(
         fmt='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # 1. Console Handler (stdout)
+    # 1. Console Handler (Tampil di Terminal)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # 2. Rotating File Handler (Production safety: 5MB per file, keep 3 backups)
+    # 2. Rotating File Handler (Simpan di File)
     try:
+        # Pastikan folder tempat file log berada sudah dibuat
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        
         file_handler = RotatingFileHandler(
             log_file, 
-            maxBytes=5 * 1024 * 1024, 
+            maxBytes=5 * 1024 * 1024, # 5MB per file
             backupCount=3,
             encoding='utf-8'
         )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     except Exception as e:
-        # Fallback to console only if file system is read-only or permission denied
-        logger.error(f"Failed to initialize file logger at {log_file}: {str(e)}")
+        # Jika gagal menulis file (misal: permission denied), log ke console saja
+        print(f"CRITICAL: Gagal inisialisasi file log di {log_file}: {e}")
 
     return logger
 
 def get_module_logger(module_name: str, client_id: str) -> logging.Logger:
     """
-    Returns a child logger for specific modules to maintain hierarchy.
+    Membuat child logger agar hierarki log terjaga (misal: sentinel_core.ingestion)
     """
-    return logging.getLogger(f"TalateeSentinel.{client_id}.{module_name}")
+    return logging.getLogger(f"sentinel_core.{client_id}.{module_name}")

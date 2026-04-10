@@ -18,7 +18,12 @@ class ShopeeLoader:
         """
         Main entry point for loading Shopee data based on format.
         """
-        format_type = self.config.get("format", "csv").lower()
+        # Menentukan apakah load lewat CSV atau API
+        # Jika ada 'file_path' di config, otomatis gunakan CSV
+        if "file_path" in self.config:
+            format_type = "csv"
+        else:
+            format_type = self.config.get("format", "api").lower()
         
         try:
             if format_type == "csv":
@@ -36,9 +41,22 @@ class ShopeeLoader:
         """
         Loads and performs initial structural normalization on Shopee CSV exports.
         """
-        file_path = self.base_dir / self.config.get("path", "")
+        # SINKRONISASI KEY: Menggunakan 'file_path' sesuai JSON client
+        relative_path = self.config.get("file_path") or self.config.get("path")
+        
+        if not relative_path:
+            self.logger.error("No path or file_path provided in Shopee configuration.")
+            return None
+
+        # Gabungkan path dengan benar
+        file_path = (self.base_dir / relative_path).resolve()
         encoding = self.config.get("encoding", "utf-8")
         
+        # Cek apakah path benar-benar file, bukan folder (mencegah Errno 13)
+        if file_path.is_dir():
+            self.logger.error(f"Path is a directory, not a file: {file_path}")
+            return None
+
         if not file_path.exists():
             self.logger.error(f"Shopee CSV file not found: {file_path}")
             return None
@@ -46,15 +64,13 @@ class ShopeeLoader:
         self.logger.info(f"Reading Shopee CSV from {file_path}")
         
         try:
-            # Shopee exports often have specific headers or BOM
-            df = pd.read_csv(file_path, encoding=encoding)
+            # Menggunakan engine='python' untuk kompatibilitas karakter khusus Shopee
+            df = pd.read_csv(file_path, encoding=encoding, engine='python')
             
             if df.empty:
                 self.logger.warning(f"Shopee CSV at {file_path} is empty.")
                 return df
 
-            # Basic column alignment to internal naming conventions if needed
-            # (Strict validation happens later in validation/schema_validator.py)
             return df
 
         except Exception as e:
@@ -64,7 +80,6 @@ class ShopeeLoader:
     def _load_from_api(self) -> Optional[pd.DataFrame]:
         """
         Simulates Shopee Open Platform API integration.
-        Returns an empty DataFrame as a placeholder for actual API logic.
         """
         endpoint = self.config.get("endpoint")
         auth_key = self.config.get("auth_key")
@@ -76,8 +91,7 @@ class ShopeeLoader:
             return None
 
         try:
-            # Implementation for requests.get() or Shopee SDK would go here
-            # Placeholder: Returning empty df to maintain pipeline flow
+            # Placeholder untuk integrasi requests ke API Shopee
             return pd.DataFrame()
         except Exception as e:
             self.logger.error(f"Shopee API connection error: {str(e)}")

@@ -31,6 +31,9 @@ class MetricsEngine:
 
             # 1. Determine Time Grouping
             if "transaction_date" in df.columns:
+                # Ensure it's datetime
+                df["transaction_date"] = pd.to_datetime(df["transaction_date"])
+                
                 if granularity == "daily":
                     df["_period"] = df["transaction_date"].dt.date
                 elif granularity == "weekly":
@@ -45,9 +48,10 @@ class MetricsEngine:
 
             if not group_cols:
                 self.logger.warning("No grouping columns available. Calculating global totals.")
-                return self._compute_aggregates(df)
+                return self._compute_aggregates(df).to_frame().T
 
             # 3. Perform Aggregation
+            # Note: Gunakan numeric_only=False jika diperlukan, atau pastikan _compute_aggregates mengembalikan Series yang bersih
             metrics_df = df.groupby(group_cols).apply(self._compute_aggregates).reset_index()
             
             # Cleanup internal column
@@ -72,7 +76,7 @@ class MetricsEngine:
             results["gmv"] = group["total_price"].sum()
 
         # Total Orders
-        if "total_orders" in self.metrics_list or "order_volume" in self.metrics_list:
+        if any(m in self.metrics_list for m in ["total_orders", "order_volume"]):
             results["total_orders"] = group["order_id"].nunique() if "order_id" in group.columns else len(group)
 
         # Average Order Value (AOV)
@@ -89,3 +93,6 @@ class MetricsEngine:
             results["units_sold"] = group["quantity"].sum()
 
         return pd.Series(results)
+
+# --- ALIAS UNTUK RUNNER ---
+AnalyticsEngine = MetricsEngine
