@@ -14,25 +14,32 @@ class MetricsEngine:
         self.analysis_cfg = config.get("analysis", {})
         self.metrics_list = self.analysis_cfg.get("metrics", ["gmv", "total_orders"])
 
-    def calculate(self, df: pd.DataFrame) -> Optional[pd.DataFrame]:
+    def generate_insights(self, df: pd.DataFrame) -> Optional[pd.DataFrame]:
         """
-        Generates a summary metrics table based on configured granularity 
-        (e.g., daily, weekly, monthly).
+        ENTRY POINT UTAMA: Dipanggil oleh runner.py.
+        Menghasilkan tabel ringkasan metrik berdasarkan granulitas yang dikonfigurasi.
         """
         if df is None or df.empty:
             self.logger.warning("Metrics calculation skipped: DataFrame is empty.")
             return None
 
         try:
-            self.logger.info(f"Calculating metrics: {self.metrics_list}")
+            self.logger.info(f"Initiating business insight generation: {self.metrics_list}")
+            
+            # --- PROTEKSI 0: Hapus Kolom Duplikat ---
+            # Menghindari ValueError: cannot assemble with duplicate keys
+            df = df.loc[:, ~df.columns.duplicated()].copy()
             
             granularity = self.analysis_cfg.get("granularity", "daily").lower()
             group_cols = []
 
             # 1. Determine Time Grouping
             if "transaction_date" in df.columns:
-                # Ensure it's datetime
-                df["transaction_date"] = pd.to_datetime(df["transaction_date"])
+                # Pastikan format datetime untuk operasi .dt
+                df["transaction_date"] = pd.to_datetime(df["transaction_date"], errors='coerce')
+                
+                # Buang baris dengan tanggal NaT agar grouping tidak error
+                df = df.dropna(subset=['transaction_date']).copy()
                 
                 if granularity == "daily":
                     df["_period"] = df["transaction_date"].dt.date
@@ -40,9 +47,10 @@ class MetricsEngine:
                     df["_period"] = df["transaction_date"].dt.to_period('W').apply(lambda r: r.start_time)
                 elif granularity == "monthly":
                     df["_period"] = df["transaction_date"].dt.to_period('M').apply(lambda r: r.start_time)
+                
                 group_cols.append("_period")
 
-            # 2. Add Platform Grouping for Multi-Marketplace clarity
+            # 2. Add Platform Grouping (Shopee, Tokopedia, etc.)
             if "platform" in df.columns:
                 group_cols.append("platform")
 
@@ -51,8 +59,10 @@ class MetricsEngine:
                 return self._compute_aggregates(df).to_frame().T
 
             # 3. Perform Aggregation
-            # Note: Gunakan numeric_only=False jika diperlukan, atau pastikan _compute_aggregates mengembalikan Series yang bersih
-            metrics_df = df.groupby(group_cols).apply(self._compute_aggregates).reset_index()
+            # Menggunakan include_groups=False untuk kompatibilitas pandas versi terbaru
+            metrics_df = df.groupby(group_cols, as_index=False).apply(
+                self._compute_aggregates, include_groups=False
+            )
             
             # Cleanup internal column
             if "_period" in metrics_df.columns:
@@ -71,24 +81,26 @@ class MetricsEngine:
         """
         results = {}
 
-        # GMV (Gross Merchandise Value)
+        # 1. GMV (Gross Merchandise Value)
         if "gmv" in self.metrics_list and "total_price" in group.columns:
             results["gmv"] = group["total_price"].sum()
 
-        # Total Orders
+        # 2. Total Orders
         if any(m in self.metrics_list for m in ["total_orders", "order_volume"]):
             results["total_orders"] = group["order_id"].nunique() if "order_id" in group.columns else len(group)
 
-        # Average Order Value (AOV)
+        # 3. Average Order Value (AOV)
         if "average_order_value" in self.metrics_list and "gmv" in results:
-            results["aov"] = results["gmv"] / results["total_orders"] if results["total_orders"] > 0 else 0
+            total_orders = results.get("total_orders", 0)
+            results["aov"] = results["gmv"] / total_orders if total_orders > 0 else 0
 
-        # SKU Performance (Top Selling SKU)
+        # 4. SKU Performance (Top Selling SKU)
         if "sku_performance" in self.metrics_list and "sku" in group.columns:
-            results["top_sku"] = group["sku"].mode().iloc[0] if not group["sku"].mode().empty else "N/A"
+            top_sku_series = group["sku"].mode()
+            results["top_sku"] = top_sku_series.iloc[0] if not top_sku_series.empty else "N/A"
             results["unique_skus"] = group["sku"].nunique()
 
-        # Quantity Sold
+        # 5. Quantity Sold
         if "quantity" in group.columns:
             results["units_sold"] = group["quantity"].sum()
 
