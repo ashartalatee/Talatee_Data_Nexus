@@ -23,7 +23,9 @@ class PipelineRunner:
         self.base_dir = base_dir
         
         # Setup client-specific logging
-        log_file = base_dir / "logs" / f"{client_id}_pipeline.log"
+        log_dir = base_dir / "logs"
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / f"{client_id}_pipeline.log"
         self.logger = setup_logger(f"runner_{client_id}", log_file)
         
         # Initialize Step Modules
@@ -36,44 +38,46 @@ class PipelineRunner:
 
     def run_pipeline(self) -> bool:
         """
-        Executes the pipeline flow: Ingestion -> Validation -> Cleaning -> Transform -> Analysis -> Output.
-        Returns True if the critical path completes, False otherwise.
+        Flow Perbaikan: Ingestion -> Cleaning/Mapping -> Validation -> Transform -> Analysis -> Output.
         """
         self.logger.info(f"Starting pipeline execution for client: {self.client_id}")
         
         df: Optional[pd.DataFrame] = None
         
         try:
-            # 1. Ingestion
+            # 1. INGESTION
             df = self.ingestor.run()
             if df is None or df.empty:
                 self.logger.error("Pipeline aborted: Ingestion returned empty/None DataFrame.")
                 return False
 
-            # 2. Validation (Fail-safe check)
-            is_valid, df = self.validator.validate(df)
-            if not is_valid and self.config.get("strict_mode", True):
-                self.logger.error("Pipeline aborted: Schema validation failed in strict mode.")
-                return False
-
-            # 3. Cleaning
+            # 2. CLEANING & MAPPING (Dinaikkan Urutannya)
+            # Di tahap ini, 'DataCleaner' harus melakukan rename kolom berdasarkan config['transformation']['column_mapping']
+            # sehingga kolom mentah Shopee/Tokopedia berubah menjadi 'order_id', dkk.
             df = self.cleaner.process(df)
             if df is None:
-                self.logger.error("Pipeline aborted: Cleaning step failed.")
+                self.logger.error("Pipeline aborted: Cleaning/Mapping step failed.")
                 return False
 
-            # 4. Transformation
+            # 3. VALIDATION (Sekarang Validator akan menemukan 'order_id')
+            is_valid, df = self.validator.validate(df)
+            if not is_valid and self.config.get("strict_mode", True):
+                self.logger.error("Pipeline aborted: Schema validation failed after cleaning/mapping.")
+                return False
+
+            # 4. TRANSFORMATION (Feature Engineering)
+            # Melakukan kalkulasi seperti margin, tax, dan regional categorization
             df = self.transformer.apply_logic(df)
             if df is None:
                 self.logger.error("Pipeline aborted: Transformation step failed.")
                 return False
 
-            # 5. Analysis & Metrics
+            # 5. ANALYSIS & METRICS
             analysis_results = self.analyzer.generate_insights(df)
             if analysis_results is None:
-                self.logger.warning("Analysis step produced no results, continuing to export raw/cleaned data.")
+                self.logger.warning("Analysis step produced no results, continuing to export data.")
 
-            # 6. Output / Export
+            # 6. OUTPUT / EXPORT
             export_success = self.exporter.save(df, analysis_results)
             
             if export_success:
@@ -88,7 +92,6 @@ class PipelineRunner:
             return False
 
     def get_status(self) -> Dict[str, Any]:
-        """Returns metadata about the last run."""
         return {
             "client_id": self.client_id,
             "config_version": self.config.get("version", "1.0.0"),
