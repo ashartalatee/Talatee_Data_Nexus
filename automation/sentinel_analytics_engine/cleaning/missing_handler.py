@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 class MissingHandler:
     """
@@ -13,7 +13,7 @@ class MissingHandler:
 
     def handle(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Executes missing value treatment.
+        Executes missing value treatment based on the configured strategy.
         """
         if df is None or df.empty:
             return df
@@ -29,24 +29,31 @@ class MissingHandler:
                 self.logger.warning(f"Unknown missing handler strategy '{strategy}'. Defaulting to fill.")
                 return self._fill_missing(df)
         except Exception as e:
-            self.logger.error(f"Error during missing value handling: {str(e)}")
+            # Perbaikan: Log error yang lebih spesifik jika terjadi crash
+            self.logger.error(f"Error during missing value handling: {str(e)}", exc_info=True)
             return df
 
     def _fill_missing(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Fills missing values based on a column-to-value mapping.
+        Fills missing values based on a column-to-value mapping or default types.
         """
         fill_map = self.config.get("columns", {})
+        
+        # Jika tidak ada mapping spesifik di JSON, gunakan fallback cerdas
         if not fill_map:
-            # Fallback: fill numeric with 0 and objects with 'Unknown'
-            for col in df.columns:
-                if df[col].dtype in ['int64', 'float64']:
+            # Menggunakan dtypes (plural) untuk iterasi kolom dan tipe datanya
+            for col, dtype in df.dtypes.items():
+                if pd.api.types.is_numeric_dtype(dtype):
                     df[col] = df[col].fillna(0)
+                elif pd.api.types.is_datetime64_any_dtype(dtype):
+                    # Jangan isi tanggal dengan 'Unknown', biarkan NaT atau drop nantinya
+                    continue
                 else:
                     df[col] = df[col].fillna("Unknown")
             return df
 
-        self.logger.info(f"Filling missing values using map: {fill_map}")
+        self.logger.info(f"Filling missing values using specific mapping: {fill_map}")
+        # fillna(value=...) sangat efisien untuk banyak kolom sekaligus
         return df.fillna(value=fill_map)
 
     def _drop_missing(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -55,22 +62,25 @@ class MissingHandler:
         """
         target_cols = self.config.get("columns", [])
         
-        # If columns are a dict (from fill config), convert keys to list
+        # Jika 'columns' di JSON berupa dict (biasa dipakai di 'fill'), ambil key-nya saja
         if isinstance(target_cols, dict):
             target_cols = list(target_cols.keys())
             
         initial_count = len(df)
         
         if not target_cols:
-            # Drop rows where ALL values are missing
+            # Strategi pasif: Hanya buang baris yang benar-benar kosong semua kolomnya
             df = df.dropna(how='all')
         else:
-            # Only check presence in existing columns to avoid KeyErrors
+            # Hanya periksa kolom yang benar-benar ada di DataFrame (menghindari KeyError)
             existing_targets = [c for c in target_cols if c in df.columns]
-            df = df.dropna(subset=existing_targets)
+            if existing_targets:
+                df = df.dropna(subset=existing_targets)
+            else:
+                self.logger.warning("Drop strategy failed: None of the target columns found in DataFrame.")
 
         dropped_count = initial_count - len(df)
         if dropped_count > 0:
-            self.logger.info(f"Dropped {dropped_count} rows due to missing critical data.")
+            self.logger.info(f"MissingHandler: Dropped {dropped_count} rows due to missing critical data.")
             
         return df
