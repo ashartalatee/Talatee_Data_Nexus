@@ -1,0 +1,53 @@
+# ============================================================
+# config.yaml — Duplicate Remover Engine
+# Business Automation Lab | Engine 01
+# ============================================================
+# PENTING: Set dry_run: true dulu sebelum eksekusi nyata!
+# ============================================================
+
+paths:
+  input_folder: input
+  output_folder: output
+  archive_folder: output/duplicates_archive
+  log_folder: logs
+
+scan:
+  recursive: true                  # masuk ke subfolder
+  include_extensions:              # List ekstensi yang diizinkan (ditambahkan format OpenOffice/LibreOffice)
+    - .xlsx
+    - .xls
+    - .csv
+    - .ods                         # <--- Ditambahkan untuk mendukung OpenOffice Spreadsheet
+    - .pdf
+    - .docx
+    - .doc
+    - .odt                         # <--- Ditambahkan untuk mendukung OpenOffice Document
+    - .png
+    - .jpg
+    - .jpeg
+    - .zip
+  exclude_folders:                 # folder yang dilewati saat scan
+    - output
+    - logs
+    - .git
+    - __pycache__
+    - node_modules
+  min_file_size_kb: 0              # <--- DIUBAH KE 0 agar file berukuran kecil/kosong tetap diproses
+
+detection:
+  hash_algorithm: sha256           # pilihan: md5 | sha256
+  keep_strategy: shortest_path            # pilihan: oldest | newest | shortest_path
+  compare_by:                      # metode deteksi (bisa kombinasi)
+    - hash                         # konten identik (paling akurat)
+    - name_and_size                # nama file + ukuran sama
+
+action:
+  dry_run: true                   # true = preview saja, false = eksekusi nyata
+  mode: archive                    # pilihan: archive | delete
+  confirm_before_run: true         # minta konfirmasi sebelum eksekusi
+
+report:
+  generate_excel: true
+  generate_log: true
+  show_space_saved: true
+  timestamp_filename: true

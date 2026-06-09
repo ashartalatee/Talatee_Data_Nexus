@@ -63,3 +63,5 @@ __pycache__/
 
 # streamlit
 .streamlit/
+
+.notes

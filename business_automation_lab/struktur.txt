@@ -1,0 +1,50 @@
+business-automation-lab/
+│
+├── README.md
+├── LICENSE
+├── requirements.txt
+├── pyproject.toml
+│
+├── shared/
+│   ├── logger/
+│   ├── config/
+│   ├── validators/
+│   ├── utils/
+│   ├── excel/
+│   ├── files/
+│   └── reports/
+│
+├── engines/
+│
+│   ├── level_1_foundation/
+│   │
+│   │   ├── duplicate_remover/
+│   │   ├── batch_rename/
+│   │   ├── file_organizer/
+│   │   ├── excel_merger/
+│   │   └── excel_cleaner/
+│   │
+│   ├── level_2_collection/
+│   │
+│   │   ├── marketplace_collector/
+│   │   ├── competitor_monitor/
+│   │   ├── ads_collector/
+│   │   ├── news_collector/
+│   │   └── email_extractor/
+│   │
+│   ├── level_3_processing/
+│   │
+│   │   ├── sales_cleaner/
+│   │   ├── product_standardizer/
+│   │   ├── customer_processor/
+│   │   ├── validation_engine/
+│   │   └── csv_transformer/
+│   │
+│   ├── level_4_reporting/
+│   ├── level_5_marketplace/
+│   └── level_6_business/
+│
+└── docs/
+    ├── roadmap/
+    ├── screenshots/
+    └── architecture/
