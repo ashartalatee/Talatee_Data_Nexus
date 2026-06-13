@@ -1,0 +1,15 @@
+safety_settings:
+  dry_run: true                # Jalankan simulasi untuk melihat rencana distribusi berkas
+  backup_before_move: false    # Opsi penyalinan cadangan sebelum pemindahan permanen
+  create_missing_dirs: true    # Otomatis membuat folder tujuan jika belum ada
+
+routing_matrix:
+  transactions:
+    extensions: [".csv", ".xlsx", ".json"]
+    target_subfolder: "raw_transactions"
+  documents:
+    extensions: [".pdf", ".txt", ".docx"]
+    target_subfolder: "business_docs"
+  media:
+    extensions: [".png", ".jpg", ".jpeg", ".mp4"]
+    target_subfolder: "marketing_assets"
