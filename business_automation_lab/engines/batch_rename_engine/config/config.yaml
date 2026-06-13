@@ -1,0 +1,10 @@
+safety_settings:
+  dry_run: true              # Jika true, engine hanya mensimulasikan output di log
+  allow_overwrite: false     # Melarang keras penimpaan file berlebih jika nama tabrakan
+  max_batch_size: 1000       # Pembatasan batas kapasitas pengolahan per batch
+
+naming_rules:
+  allowed_extensions: [".jpg", ".png", ".csv", ".xlsx", ".pdf", ".txt"]
+  default_prefix: "TALATEE_"
+  default_suffix: "_2026"
+  sanitize_spaces: true      # Otomatis mengonversi spasi menjadi underscore (_)
