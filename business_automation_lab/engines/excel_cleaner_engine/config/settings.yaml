@@ -1,0 +1,19 @@
+pipeline:
+  chunk_size: 50000          # Memproses data per 50 ribu baris agar RAM tidak meledak
+  drop_empty_rows: true      # Hapus jika satu baris kosong semua
+
+columns_schema:
+  customer_id:
+    type: "string"
+    required: true
+    action: "strip"          # Menghilangkan spasi tak berguna di awal/akhir
+  
+  revenue:
+    type: "numeric"
+    required: false
+    default_value: 0         # Jika kosong, otomatis diisi 0 (anti-NaN error)
+  
+  transaction_date:
+    type: "datetime"
+    required: true
+    date_format: "%Y-%m-%d"  # Menyeragamkan format tanggal jika berantakan
