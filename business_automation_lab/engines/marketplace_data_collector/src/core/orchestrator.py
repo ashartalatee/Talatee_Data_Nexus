@@ -1,7 +1,6 @@
-# src/core/orchestrator.py
 import logging
 import uuid
-from typing import Dict, Any
+from src.transformers.intelligence_analyst import IntelligenceAnalyst
 
 logger = logging.getLogger("TalateeEngine")
 
@@ -10,38 +9,43 @@ class DataCollectionOrchestrator:
         self.extractor = extractor
         self.transformer = transformer
         self.storage = storage
+        # Mengintegrasikan analisis intelijen data langsung ke dalam pipeline
+        self.analyst = IntelligenceAnalyst()
 
-    def execute_pipeline(self, target_url: str, platform: str) -> Dict[str, Any]:
-        """
-        Menjalankan satu siklus penuh ekstraksi data secara aman (Sirkuit Terisolasi).
-        """
+    def execute_pipeline(self, target_url: str, platform: str) -> dict:
         run_id = str(uuid.uuid4())
-        logger.info(f"Memulai pipeline eksekusi untuk platform: {platform}", extra={"run_id": run_id})
+        logger.info(f"Memulai orkestrasi otomatis Engine no. 6", extra={"run_id": run_id})
 
-        # --- FASE 1: AMBIL DATA MENTAH (RAW EXTRACTION) ---
+        # Fase 1: Ingestion Data Mentah secara Aman
         try:
-            # Extractor dijamin mengimplementasikan retry mechanism secara internal
             raw_payload = self.extractor.fetch_product_details(target_url)
-            
-            # Amankan payload mentah sebagai single-source-of-truth historis
             self.storage.save_raw(raw_payload, platform, run_id)
-            
-        except Exception as err:
-            logger.critical(f"Kegagalan fatal pada fase ekstraksi data: {str(err)}", extra={"run_id": run_id})
-            return {"status": "FAILED_INGESTION", "run_id": run_id, "error": str(err)}
+        except Exception as e:
+            logger.critical(f"Gagal fatal pada fase pengambilan data: {str(e)}", extra={"run_id": run_id})
+            return {"status": "FAILED_INGESTION", "reason": str(e)}
 
-        # --- FASE 2: NORMALISASI DAN VALIDASI DATA ---
+        # Fase 2: Transformasi Data Standardisasi Awal
         try:
-            # Mengubah struktur payload mentah platform spesifik menjadi objek data terpadu
-            clean_records = self.transformer.standardize(raw_payload, platform, run_id)
+            # Mengubah JSON mentah menjadi objek Pydantic awal
+            unified_data = self.transformer.standardize(raw_payload, platform, run_id)
             
-            # Menyimpan hasil data bersih siap pakai ke folder processed
-            self.storage.save_processed(clean_records, run_id)
+            # --- FASE INTEGRASI BARU: INTELLIGENCE LAYER ---
+            # Jalankan analisis grading tanpa mencampuradukkan logika di dalam extractor maupun transformer
+            grade_result = self.analyst.classify_product_grade(
+                price=unified_data.price, 
+                total_sold=unified_data.total_sold, 
+                run_id=run_id
+            )
             
-            logger.info("Pipeline berhasil dieksekusi dengan integritas data 100%.", extra={"run_id": run_id})
-            return {"status": "SUCCESS", "run_id": run_id}
+            # Perbarui nilai model secara deterministik sebelum ditulis ke penyimpanan fisik
+            unified_data.product_grade = grade_result
             
-        except Exception as err:
-            # Jika skema pecah, data mentah di Fase 1 tetap terselamatkan dengan aman untuk di-debug
-            logger.error(f"Gagal memvalidasi/mentransformasi data mentah: {str(err)}", extra={"run_id": run_id})
-            return {"status": "FAILED_TRANSFORMATION", "run_id": run_id, "error": str(err)}
+            # Fase 3: Persistensi Data Bersih Akhir oleh Single Writer
+            self.storage.save_processed(unified_data, run_id)
+            
+            logger.info("Seluruh alur pipeline dan analisis data sukses diselesaikan.", extra={"run_id": run_id})
+            return {"status": "SUCCESS", "run_id": run_id, "grade": grade_result}
+
+        except Exception as e:
+            logger.error(f"Gagal memproses analisis data. Berkas mentah tetap aman terarsip: {str(e)}", extra={"run_id": run_id})
+            return {"status": "FAILED_PROCESSING", "run_id": run_id}

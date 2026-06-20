@@ -1,4 +1,6 @@
+# tests/test_transformers.py
 import unittest
+from pydantic import ValidationError
 from src.transformers.market_cleaner import MarketplaceTransformer
 from src.transformers.schemas import MarketplaceUnifiedModel
 
@@ -21,21 +23,22 @@ class TestMarketplaceTransformer(unittest.TestCase):
         
         result = self.transformer.standardize(raw_shopee, platform="shopee", run_id=self.run_id)
         
-        # Validasi Integritas Hasil
-        self.setIsinstance(result, MarketplaceUnifiedModel)
-        self.assertEqual(result.product_name, "Kemeja Flanel Premium")  # Teks harus sudah bersih (di-strip)
-        self.assertEqual(result.price, 150000.0)  # Harga harus terkonversi dengan benar
+        # PERBAIKAN: Menggunakan assertIsInstance, bukan setIsinstance (typo fix)
+        self.assertIsInstance(result, MarketplaceUnifiedModel)
+        self.assertEqual(result.product_name, "Kemeja Flanel Premium")
+        self.assertEqual(result.price, 150000.0)
         self.assertEqual(result.platform, "shopee")
 
-    def test_transform_missing_key_raises_error(self):
-        """Sistem harus melempar KeyError secara prediktif jika struktur JSON marketplace berubah"""
+    def test_transform_missing_key_raises_validation_error(self):
+        """Sistem harus memicu ValidationError jika struktur JSON marketplace rusak/tidak lengkap"""
         raw_broken_data = {
-            "produk_ngawur": {  # Struktur kunci berubah mendadak
+            "produk_ngawur": {  
                 "id": "123"
             }
         }
         
-        with self.assertRaises(KeyError):
+        # PERBAIKAN: Menangkap ValidationError karena Pydantic menolak harga yang bernilai 0
+        with self.assertRaises(ValidationError):
             self.transformer.standardize(raw_broken_data, platform="shopee", run_id=self.run_id)
 
 if __name__ == "__main__":
