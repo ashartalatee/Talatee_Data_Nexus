@@ -1,0 +1,16 @@
+# Database Connector Engine - Requirements
+# Install semua: pip install -r requirements.txt
+
+# ── Excel support ────────────────────────────
+pandas>=1.5.0
+openpyxl>=3.0.0
+
+# ── MySQL support ────────────────────────────
+mysql-connector-python>=8.0.0
+
+# ── PostgreSQL support ───────────────────────
+psycopg2-binary>=2.9.0
+
+# ── Catatan ──────────────────────────────────
+# SQLite dan CSV sudah built-in di Python, tidak perlu install apapun.
+# Kalau hanya pakai SQLite + CSV, tidak perlu install file ini.

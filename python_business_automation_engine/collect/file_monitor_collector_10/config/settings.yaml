@@ -1,0 +1,61 @@
+# ============================================================
+# File Monitor Collector - Konfigurasi
+# ============================================================
+# Edit file ini untuk menyesuaikan engine dengan kebutuhan bisnis Anda.
+
+# ── FOLDER YANG DIMONITOR ───────────────────────────────────
+watch_folders:
+  - "inbox"          # Folder utama yang dimonitor
+  # - "D:/Downloads" # Contoh: monitor folder Downloads Windows
+  # - "/home/user/documents" # Contoh: Linux path
+
+# Monitor subfolder secara rekursif?
+recursive: true
+
+# ── OUTPUT ──────────────────────────────────────────────────
+output_folder: "output"   # File hasil sortir disimpan di sini
+log_file: "logs/activity.log"
+log_to_console: true
+
+# ── POLA YANG DIABAIKAN ─────────────────────────────────────
+ignored_patterns:
+  - ".tmp"
+  - ".DS_Store"
+  - "~$"       # File temporary Word/Excel
+  - "Thumbs.db"
+
+# ── AKSI OTOMATIS ───────────────────────────────────────────
+# Semua aksi bersifat opsional. Nonaktifkan dengan menghapus atau memberi komentar.
+
+actions:
+
+  # 1. AUTO-SORT: Pindahkan file ke subfolder sesuai ekstensi
+  auto_sort:
+    triggers:
+      - on_created
+    # Kustomisasi peta ekstensi → folder tujuan
+    extension_map:
+      ".pdf":  "documents/pdf"
+      ".docx": "documents/word"
+      ".xlsx": "documents/excel"
+      ".csv":  "documents/data"
+      ".txt":  "documents/text"
+      ".png":  "images"
+      ".jpg":  "images"
+      ".jpeg": "images"
+      ".mp4":  "videos"
+      ".zip":  "archives"
+      ".py":   "code"
+
+  # 2. BACKUP: Salin file ke folder backup saat dibuat
+  backup:
+    triggers:
+      - on_created
+    backup_folder: "backup"
+
+  # 3. NOTIFIKASI: Alert saat ada file baru masuk
+  notify:
+    triggers:
+      - on_created
+      - on_deleted
+    message: "Ada aktivitas file baru!"

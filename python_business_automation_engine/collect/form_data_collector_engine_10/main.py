@@ -44,7 +44,7 @@ import os
 import sys
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -458,7 +458,7 @@ def run_pipeline(cfg: dict) -> bool:
 
     Returns True on success, False on failure.
     """
-    run_time   = datetime.utcnow()
+    run_time   = datetime.now(timezone.utc).replace(tzinfo=None)
     start_time = time.perf_counter()
 
     _print_header(cfg, run_time)

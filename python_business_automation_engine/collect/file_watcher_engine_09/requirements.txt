@@ -1,0 +1,9 @@
+# File Watcher Engine - Requirements
+# No external packages needed for core functionality!
+# Python 3.8+ built-in modules only:
+#   os, time, shutil, hashlib, logging, threading, pathlib, datetime, dataclasses, typing, tkinter
+
+# Optional: for extended features
+# watchdog>=3.0.0     # faster OS-level file events (optional upgrade)
+# plyer>=2.1.0        # desktop notifications (optional)
+# openpyxl>=3.1.0     # export log to Excel (optional)
