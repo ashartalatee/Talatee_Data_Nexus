@@ -1,0 +1,25 @@
+# Credentials — JANGAN PERNAH commit file ini
+credentials.json
+*.json.key
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Output data hasil import
+output/
+*.csv
+*.xlsx
+!examples/*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
