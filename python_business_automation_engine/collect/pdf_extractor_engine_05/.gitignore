@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Hasil ekstraksi (jangan ikut di-commit ke GitHub)
+hasil_ekstraksi/
+test_output/
+output/
+*.pdf
+!sample_pdfs/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
